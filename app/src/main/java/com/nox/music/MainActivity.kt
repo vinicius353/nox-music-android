@@ -508,7 +508,7 @@ class MainActivity : Activity() {
         val youtubeText=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
         youtubeText.addView(text("YOUTUBE MUSIC",11f,light,true).apply { letterSpacing=.10f })
         youtubeText.addView(text("Mais músicas para explorar.",16f,light,true),lp(-1,-2,0,7))
-        youtubeText.addView(text("Catálogo oficial • reprodução pelo serviço",11f,secondary),lp(-1,-2,0,5))
+        youtubeText.addView(text("Player nativo • segundo plano • playlists NOX",11f,secondary),lp(-1,-2,0,5))
         youtubeCard.addView(youtubeText,LinearLayout.LayoutParams(0,-2,1f))
         youtubeCard.addView(icon(R.drawable.ic_youtube_music,31,light),lp(31,31,11))
         column.addView(youtubeCard,lp(-1,-2,0,0,0,27))
@@ -713,7 +713,8 @@ class MainActivity : Activity() {
     }
 
     private fun searchPage(column: LinearLayout) {
-        heading(column, "Streaming gratuito", "Encontre sua próxima música.", "Busque por faixa, álbum ou artista.")
+        heading(column, "TODAS AS FONTES", "Encontre sua próxima música.",
+            "YouTube Music • Audius • Jamendo • biblioteca local")
         val input = searchInput("Nome da música ou artista...") { value ->
             if (value == searchText) return@searchInput
             searchText = value
@@ -733,7 +734,7 @@ class MainActivity : Activity() {
             }
         }
         column.addView(input, lp(-1, 52, 0, 0, 0, 12))
-        column.addView(actionLabel("PESQUISAR NO YOUTUBE MUSIC  ↗") {
+        column.addView(actionLabel("PESQUISAR NO YOUTUBE MUSIC") {
             openYouTubeMusic(searchText)
         },lp(-1,46,0,0,0,16))
         if (searchText.isNotBlank()) {
@@ -814,7 +815,7 @@ class MainActivity : Activity() {
         val request=++searchRequest
         val clientId=jamendoClientId()
         val highQuality=getSharedPreferences("nox_settings",MODE_PRIVATE).getBoolean("hq_audio",true)
-        searchPendingSources=if(clientId.isNotBlank()) 2 else 1
+        searchPendingSources=if(clientId.isNotBlank()) 3 else 2
         onlineLoading=true
         onlineTracks=emptyList()
         onlineError=null
@@ -824,6 +825,7 @@ class MainActivity : Activity() {
                 if(isDestroyed || isFinishing || request!=searchRequest || searchText!=query) return@runOnUiThread
                 result.onSuccess { found ->
                     onlineTracks=(onlineTracks+found).distinctBy { it.id }
+                        .sortedBy { if(it.source == Source.YOUTUBE) 0 else 1 }
                 }.onFailure {
                     onlineError=it.localizedMessage ?: "Fonte indisponível"
                 }
@@ -832,6 +834,7 @@ class MainActivity : Activity() {
                 if(tab==1) renderSearchResults()
             }
         }
+        io.execute { handle(runCatching { youtube.search(query,40) }) }
         io.execute { handle(runCatching { audius.search(query) }) }
         if(clientId.isNotBlank()) {
             io.execute { handle(runCatching { JamendoRepository(clientId,highQuality).search(query) }) }
