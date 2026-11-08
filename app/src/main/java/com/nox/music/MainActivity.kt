@@ -249,7 +249,7 @@ class MainActivity : Activity() {
         val settings = icon(R.drawable.ic_settings, 23, secondary).apply {
             contentDescription = "Configurações"
             setPadding(dp(1), dp(1), dp(1), dp(1))
-            setOnClickListener { openTab(4) }
+            setOnClickListener { openTab(5) }
         }
         header.addView(settings, lp(28, 28))
         column.addView(header, lp(-1, 68))
@@ -579,6 +579,7 @@ class MainActivity : Activity() {
     }
 
     private fun radioPage(column: LinearLayout) {
+        if (radioRequest == 0 && radios.isEmpty()) loadRadios()
         heading(column, "Streaming gratuito", "Rádio ao vivo", "Estações online. Sem conta ou assinatura.")
         column.addView(searchInput("Buscar estação de rádio...") { query ->
             radioSearch = query
@@ -721,7 +722,7 @@ class MainActivity : Activity() {
                     val id = libraryDb.createPlaylist(name)
                     addTrack?.let { libraryDb.addToPlaylist(id, it) }
                     Toast.makeText(this, "Playlist criada.", Toast.LENGTH_SHORT).show()
-                    if (tab == 3) renderPage()
+                    if (tab == 7) renderPage()
                     if (tab == 6) {
                         selectedPlaylistId = id
                         renderPage()
@@ -931,32 +932,70 @@ class MainActivity : Activity() {
     }
 
     private fun settingsPage(column: LinearLayout) {
-        heading(column, "Preferências", "Configurações", "NOX Music • versão 0.1.0 Alpha")
-        section(column, "Reprodução")
-        infoCard(column, "Áudio em segundo plano", "Notificação de mídia, controle por fones e reprodução com a tela desligada.", null, null)
+        heading(column, "Personalização", "Configurações", "NOX Music • versão 0.2.0 Alpha")
         val prefs = getSharedPreferences("nox_settings", MODE_PRIVATE)
+        section(column, "Aparência")
         val motion = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(16), dp(16), dp(16))
-            background = shape(card, 16)
+            background = shape(card, 15)
+            setPadding(dp(17),dp(16),dp(17),dp(16))
         }
-        motion.addView(text("Animações de entrada", 14f, light, true), LinearLayout.LayoutParams(0, -2, 1f))
-        val status = text(if (prefs.getBoolean("animations", true)) "ATIVAS" else "DESLIGADAS", 11f, accent, true)
-        motion.addView(status)
+        motion.addView(text("Animações de entrada", 14f, light, true), LinearLayout.LayoutParams(0,-2,1f))
+        val state = text(if (prefs.getBoolean("animations", true)) "ATIVAS" else "DESLIGADAS",11f,secondary,true)
+        motion.addView(state)
         motion.setOnClickListener {
-            val enabled = !prefs.getBoolean("animations", true)
-            prefs.edit().putBoolean("animations", enabled).apply()
-            status.text = if (enabled) "ATIVAS" else "DESLIGADAS"
+            val enabled = !prefs.getBoolean("animations",true)
+            prefs.edit().putBoolean("animations",enabled).apply()
+            state.text = if (enabled) "ATIVAS" else "DESLIGADAS"
         }
-        column.addView(motion, lp(-1, -2, 0, 0, 0, 18))
+        column.addView(motion,lp(-1,-2,0,0,0,19))
+        section(column, "Streaming")
+        val hasJamendo = !prefs.getString("jamendo_id","").isNullOrBlank()
+        infoCard(column, "Jamendo • acesso opcional",
+            if (hasJamendo) "Fonte Jamendo configurada. Músicas completas e oficiais." else "Para ativar, obtenha gratuitamente um client_id no portal Jamendo.",
+            if (hasJamendo) "ALTERAR CLIENT ID" else "CONFIGURAR CLIENT ID") {
+            val field = EditText(this).apply {
+                setSingleLine(true)
+                setTextColor(light)
+                setHintTextColor(secondary)
+                hint = "client_id do Jamendo"
+                setText(prefs.getString("jamendo_id", ""))
+                setPadding(dp(16),dp(12),dp(16),dp(12))
+            }
+            AlertDialog.Builder(this)
+                .setTitle("Jamendo client_id")
+                .setView(field)
+                .setMessage("Use apenas a credencial gratuita da sua aplicação. Deixe vazio para desativar.")
+                .setNegativeButton("Cancelar",null)
+                .setPositiveButton("Salvar") { _,_ ->
+                    val id = field.text.toString().trim()
+                    if (id.isEmpty() || id.matches(Regex("[a-zA-Z0-9]{4,64}"))) {
+                        prefs.edit().putString("jamendo_id",id).apply()
+                        if (searchText.isNotEmpty()) performSearch(searchText)
+                        renderPage()
+                    } else Toast.makeText(this,"Client ID inválido.",Toast.LENGTH_SHORT).show()
+                }.show()
+        }
+        column.addView(text("Portal oficial: developer.jamendo.com",11f,secondary),lp(-1,-2,0,5,0,17))
+        val quality = actionLabel(
+            if (prefs.getBoolean("hq_audio",true)) "QUALIDADE JAMENDO: ALTA" else "QUALIDADE JAMENDO: ECONÔMICA"
+        ) {
+            val enabled = !prefs.getBoolean("hq_audio",true)
+            prefs.edit().putBoolean("hq_audio",enabled).apply()
+            renderPage()
+        }
+        column.addView(quality,lp(-1,51,0,0,0,18))
         section(column, "Biblioteca")
-        column.addView(actionLabel("RECARREGAR MÚSICAS LOCAIS") {
+        column.addView(actionLabel("RECARREGAR ARQUIVOS LOCAIS") {
             if (hasAudioPermission()) {
                 loadLocal()
                 Toast.makeText(this, "Atualizando biblioteca...", Toast.LENGTH_SHORT).show()
             } else requestAudioPermission()
-        }, lp(-1, 54, 0, 0, 0, 14))
-        column.addView(text("Este aplicativo não inclui publicidade, coleta de dados nem áudio protegido. As rádios pertencem aos seus respectivos operadores.", 12f, secondary), lp(-1, -2, 0, 15))
+        },lp(-1,49,0,0,0,10))
+        column.addView(actionLabel("ABRIR RÁDIO AO VIVO") { openTab(4) },lp(-1,49,0,0,0,19))
+        section(column, "Sobre")
+        column.addView(text("NOX Music • player Android independente. Sem anúncios, sem conta obrigatória e sem coleta de dados.",12f,secondary))
+        column.addView(text("Músicas online são fornecidas por seus respectivos provedores e podem não estar disponíveis em todas as regiões.",11f,secondary),lp(-1,-2,0,11))
     }
 
     private fun infoCard(
@@ -1007,66 +1046,105 @@ class MainActivity : Activity() {
 
     private fun artwork(track: Track?, size: Int, radius: Int = 13): FrameLayout {
         val isRadio = track?.isLive == true
-        return FrameLayout(this).apply {
-            background = if (isRadio)
-                gradient(Color.rgb(102, 75, 132), Color.rgb(40, 35, 69), radius = radius)
-            else gradient(Color.rgb(62, 63, 81), Color.rgb(29, 34, 43), radius = radius)
-            val graphic = icon(if (isRadio) R.drawable.ic_radio else R.drawable.ic_music,
-                min(64, size / 2), if (isRadio) accent else light)
-            addView(graphic, FrameLayout.LayoutParams(dp(min(64, size / 2)),
-                dp(min(64, size / 2)), Gravity.CENTER))
+        val art = FrameLayout(this).apply {
+            background = shape(if (isRadio) Color.rgb(41,41,41) else Color.rgb(32,32,32),radius)
+            clipToOutline = true
+            val symbol = icon(if (isRadio) R.drawable.ic_radio else R.drawable.ic_music,
+                min(52,size / 2), Color.rgb(188,188,188))
+            addView(symbol,FrameLayout.LayoutParams(dp(min(52,size / 2)),dp(min(52,size / 2)),Gravity.CENTER))
         }
+        if (!track?.artworkUrl.isNullOrBlank()) {
+            val cover = ImageView(this).apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                contentDescription = "Capa da música"
+            }
+            art.addView(cover,FrameLayout.LayoutParams(-1,-1))
+            covers.into(track!!.artworkUrl,cover)
+        }
+        return art
     }
 
     /**
-     * Render a small, bounded page of rows. A large music library must not create
-     * thousands of Android Views at once on a low-memory phone.
+     * Render only a bounded page instead of creating hundreds of views for a large library.
+     * The queue is preserved as a distinct source list.
      */
     private fun addRows(target: LinearLayout, shown: List<Track>, queue: List<Track>) {
-        val savedIds = favorites.all().mapTo(mutableSetOf()) { it.id }
-
+        val saved = favorites.all().mapTo(mutableSetOf()) { it.id }
         fun append(from: Int) {
-            val end = min(from + 45, shown.size)
+            val end = min(from+35,shown.size)
             for (index in from until end) {
                 val track = shown[index]
                 val row = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
-                    minimumHeight = dp(67)
-                    setOnClickListener { startTrack(queue, index) }
+                    minimumHeight = dp(66)
+                    setOnClickListener { startTrack(queue,index) }
                 }
-                row.addView(artwork(track, 50), lp(50, 50, 0, 0, 12))
-                val metadata = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-                metadata.addView(text(track.title, 13.5f, light, true).apply { maxLines = 1 })
-                metadata.addView(text(track.artist, 11.5f, secondary).apply { maxLines = 1 },
-                    lp(-1, -2, 0, 5))
-                row.addView(metadata, LinearLayout.LayoutParams(0, -2, 1f))
-                val isSaved = savedIds.contains(track.id)
-                val heart = text(if (isSaved) "♥" else "♡",
-                    22f, if (isSaved) accent else secondary)
-                heart.gravity = Gravity.CENTER
-                heart.contentDescription = "Adicionar ou remover favorito"
-                heart.setOnClickListener {
-                    val added = favorites.toggle(track)
-                    if (added) savedIds.add(track.id) else savedIds.remove(track.id)
-                    heart.text = if (added) "♥" else "♡"
-                    heart.setTextColor(if (added) accent else secondary)
-                    syncPlayback()
-                    if (tab == 3) renderPage()
+                row.addView(artwork(track,48),lp(48,48,0,0,12))
+                val details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                details.addView(text(track.title,13.5f,light,true).apply { maxLines=1 })
+                details.addView(text(track.artist + " · " + track.providerName,11f,secondary).apply { maxLines=1 },
+                    lp(-1,-2,0,5))
+                row.addView(details,LinearLayout.LayoutParams(0,-2,1f))
+                val active = saved.contains(track.id)
+                val heart = text(if (active) "♥" else "♡",21f,
+                    if (active) light else secondary).apply {
+                    gravity = Gravity.CENTER
+                    contentDescription = "Favoritar"
+                    setOnClickListener {
+                        val added = favorites.toggle(track)
+                        if (added) saved.add(track.id) else saved.remove(track.id)
+                        text = if (added) "♥" else "♡"
+                        setTextColor(if (added) light else secondary)
+                        if (tab == 7) renderPage()
+                        syncPlayback()
+                    }
                 }
-                row.addView(heart, lp(39, 48, 7))
-                target.addView(row, lp(-1, 70))
+                row.addView(heart,lp(32,44,0,0,1))
+                row.addView(text("⋮",23f,secondary).apply {
+                    gravity = Gravity.CENTER
+                    contentDescription = "Mais opções"
+                    setOnClickListener { showTrackMenu(track) }
+                },lp(27,44))
+                target.addView(row,lp(-1,67))
             }
             if (end < shown.size) {
                 lateinit var more: TextView
-                more = actionLabel("CARREGAR MAIS  (${shown.size - end})  ↓") {
+                more = actionLabel("CARREGAR MAIS  (${shown.size-end})  ↓") {
                     target.removeView(more)
                     append(end)
                 }
-                target.addView(more, lp(-1, 50, 0, 8, 0, 15))
+                target.addView(more,lp(-1,46,0,9,0,15))
             }
         }
         append(0)
+    }
+
+    private fun showTrackMenu(track: Track) {
+        val actions = mutableListOf("Reproduzir agora", "Adicionar à fila", "Adicionar à playlist",
+            if (favorites.contains(track.id)) "Remover dos favoritos" else "Adicionar aos favoritos")
+        val options = mutableListOf(0,1,2,3)
+        if (!track.isLive) {
+            actions.add("Ver artista")
+            options.add(4)
+            if (track.album.isNotBlank()) {
+                actions.add("Ver álbum")
+                options.add(5)
+            }
+        }
+        AlertDialog.Builder(this).setTitle(track.title)
+            .setItems(actions.toTypedArray()) { _, index ->
+                when (options[index]) {
+                    0 -> startTrack(listOf(track),0)
+                    1 -> addToQueue(track)
+                    2 -> addToPlaylistDialog(track)
+                    3 -> { favorites.toggle(track); if (tab == 7) renderPage(); syncPlayback() }
+                    4 -> openDetail(track,false)
+                    5 -> openDetail(track,true)
+                }
+            }
+            .setNegativeButton("Cancelar",null)
+            .show()
     }
 
     private fun hasAudioPermission(): Boolean {
@@ -1101,7 +1179,7 @@ class MainActivity : Activity() {
         val requestId = ++radioRequest
         radioLoading = true
         radioError = null
-        if (tab == 2) renderRadioRows()
+        if (tab == 4) renderRadioRows()
         io.execute {
             val result = runCatching { RadioRepository().search(query, tag, brazilOnly) }
             runOnUiThread {
@@ -1109,7 +1187,7 @@ class MainActivity : Activity() {
                 radioLoading = false
                 result.onSuccess { radios = it; radioError = null }
                 result.onFailure { radios = emptyList(); radioError = it.message ?: "Erro de rede" }
-                if (tab == 2) renderRadioRows()
+                if (tab == 4) renderRadioRows()
                 else if (tab == 0) renderPage()
             }
         }
@@ -1251,7 +1329,7 @@ class MainActivity : Activity() {
             setOnClickListener {
                 currentTrack()?.let { favorites.toggle(it) }
                 syncPlayback()
-                if (tab == 3) renderPage()
+                if (tab == 7) renderPage()
             }
         }
         details.addView(playerFavorite, lp(48, 48))
@@ -1331,7 +1409,7 @@ class MainActivity : Activity() {
         }
         controls.addView(playerRepeat, LinearLayout.LayoutParams(0, dp(55), 1f))
         column.addView(controls, lp(-1, 73, 0, 0, 0, 24))
-        column.addView(text("NOX MUSIC  •  0.1.0 ALPHA", 10f, secondary, true).apply {
+        column.addView(text("NOX MUSIC  •  0.2.0 ALPHA", 10f, secondary, true).apply {
             gravity = Gravity.CENTER
             letterSpacing = 0.08f
         }, lp(-1, -2, 0, 2))
