@@ -6,7 +6,7 @@ import androidx.media3.common.MediaMetadata
 import org.json.JSONObject
 
 /** Each song carries its own provider identity; saved playlists never depend on a search page. */
-enum class Source { LOCAL, AUDIOUS, JAMENDO, RADIO }
+enum class Source { LOCAL, AUDIOUS, JAMENDO, RADIO, YOUTUBE }
 
 data class Track(
     val id: String,
@@ -26,6 +26,7 @@ data class Track(
         Source.AUDIOUS -> "Audius"
         Source.JAMENDO -> "Jamendo"
         Source.RADIO -> "Rádio ao vivo"
+        Source.YOUTUBE -> "YouTube Music"
     }
 
     fun mediaItem(): MediaItem {
@@ -37,11 +38,12 @@ data class Track(
         if (artworkUrl.startsWith("https://") || artworkUrl.startsWith("content://")) {
             metadata.setArtworkUri(Uri.parse(artworkUrl))
         }
-        return MediaItem.Builder()
+        val builder = MediaItem.Builder()
             .setMediaId(id)
             .setUri(Uri.parse(uri))
             .setMediaMetadata(metadata.build())
-            .build()
+        if (source == Source.YOUTUBE) builder.setCustomCacheKey(id)
+        return builder.build()
     }
 
     fun toJson(): JSONObject = JSONObject().apply {
