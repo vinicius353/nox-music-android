@@ -42,6 +42,7 @@ import com.nox.music.data.JamendoRepository
 import com.nox.music.data.MusicDatabase
 import com.nox.music.data.MusicPlaylist
 import com.nox.music.ui.CoverLoader
+import com.nox.music.ui.YouTubeMusicPanel
 import com.nox.music.data.LocalMusicRepository
 import com.nox.music.data.RadioRepository
 import com.nox.music.audio.PlaybackService
@@ -88,6 +89,8 @@ class MainActivity : Activity() {
     private var miniArtworkId = ""
     private var miniProgress: View? = null
     private var miniContainer: FrameLayout? = null
+    private var youtubePanel: YouTubeMusicPanel? = null
+    private var youtubeSearchQuery: String? = null
     private lateinit var root: FrameLayout
     private lateinit var content: FrameLayout
     private lateinit var nav: LinearLayout
@@ -162,14 +165,19 @@ class MainActivity : Activity() {
         super.onResume()
         handler.removeCallbacks(ticker)
         handler.post(ticker)
+        if (tab == 10 && youtubePanel == null && ::content.isInitialized) renderPage()
     }
 
     override fun onPause() {
         handler.removeCallbacks(ticker)
+        youtubePanel?.close()
+        youtubePanel = null
         super.onPause()
     }
 
     override fun onDestroy() {
+        youtubePanel?.close()
+        youtubePanel = null
         handler.removeCallbacksAndMessages(null)
         player?.removeListener(listener)
         controllerFuture?.let { MediaController.releaseFuture(it) }
@@ -196,6 +204,8 @@ class MainActivity : Activity() {
     override fun onBackPressed() {
         when {
             overlay != null -> closePlayer()
+            tab == 10 && youtubePanel?.canGoBack() == true -> youtubePanel?.goBack()
+            tab == 10 -> openTab(0)
             tab in 6..9 -> openTab(if (priorTab in 0..5) priorTab else 3)
             tab != 0 -> openTab(0)
             else -> super.onBackPressed()
@@ -326,12 +336,19 @@ class MainActivity : Activity() {
         renderNav()
     }
 
+    private fun openYouTubeMusic(query: String? = null) {
+        player?.pause()
+        youtubeSearchQuery = query?.trim()?.takeIf { it.isNotBlank() }
+        openTab(10)
+    }
+
     private fun renderNav() {
         nav.removeAllViews()
         val entries = listOf(
             Triple("Início", R.drawable.ic_home, 0),
             Triple("Buscar", R.drawable.ic_search, 1),
-            Triple("Biblioteca", R.drawable.ic_library, 2),
+            Triple("YT Music", R.drawable.ic_youtube_music, 10),
+            Triple("Offline", R.drawable.ic_library, 2),
             Triple("Coleção", R.drawable.ic_heart, 3)
         )
         for ((label, drawable, index) in entries) {
@@ -355,6 +372,10 @@ class MainActivity : Activity() {
 
     private fun openTab(index: Int) {
         if (overlay != null) closePlayer(immediate = true)
+        if (tab == 10 && youtubePanel != null) {
+            youtubePanel?.close()
+            youtubePanel = null
+        }
         if (index >= 6 && tab <= 5) priorTab = tab
         tab = index
         searchResults = null
@@ -368,6 +389,13 @@ class MainActivity : Activity() {
         content.removeAllViews()
         searchResults = null
         radioContainer = null
+        if (tab == 10) {
+            val surface = YouTubeMusicPanel(this)
+            youtubePanel = surface
+            content.addView(surface.create(youtubeSearchQuery), FrameLayout.LayoutParams(-1, -1))
+            youtubeSearchQuery = null
+            return
+        }
         val scroll = ScrollView(this).apply {
             isFillViewport = false
             clipToPadding = false
@@ -471,7 +499,22 @@ class MainActivity : Activity() {
                 marginEnd=dp(7)
             })
         }
-        column.addView(shortcuts,lp(-1,51,0,0,0,29))
+        column.addView(shortcuts,lp(-1,51,0,0,0,15))
+
+        val youtubeCard=LinearLayout(this).apply {
+            gravity=Gravity.CENTER_VERTICAL
+            orientation=LinearLayout.HORIZONTAL
+            background=shape(Color.rgb(30,30,30),19)
+            setPadding(dp(17),dp(17),dp(15),dp(17))
+            setOnClickListener { openYouTubeMusic() }
+        }
+        val youtubeText=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        youtubeText.addView(text("YOUTUBE MUSIC",11f,light,true).apply { letterSpacing=.10f })
+        youtubeText.addView(text("Mais músicas para explorar.",16f,light,true),lp(-1,-2,0,7))
+        youtubeText.addView(text("Catálogo oficial • reprodução pelo serviço",11f,secondary),lp(-1,-2,0,5))
+        youtubeCard.addView(youtubeText,LinearLayout.LayoutParams(0,-2,1f))
+        youtubeCard.addView(icon(R.drawable.ic_youtube_music,31,light),lp(31,31,11))
+        column.addView(youtubeCard,lp(-1,-2,0,0,0,27))
 
         val recent=libraryDb.history(8)
         if(recent.isNotEmpty()) {
@@ -549,7 +592,10 @@ class MainActivity : Activity() {
                 handler.postDelayed(pending, 420)
             }
         }
-        column.addView(input, lp(-1, 52, 0, 0, 0, 16))
+        column.addView(input, lp(-1, 52, 0, 0, 0, 12))
+        column.addView(actionLabel("PESQUISAR NO YOUTUBE MUSIC  ↗") {
+            openYouTubeMusic(searchText)
+        },lp(-1,46,0,0,0,16))
         if (searchText.isNotBlank()) {
             input.setText(searchText)
             input.setSelection(input.length())
@@ -1229,8 +1275,12 @@ class MainActivity : Activity() {
         },lp(-1,50,0,0,0,11))
         column.addView(actionLabel("EXPLORAR RÁDIOS AO VIVO") { openTab(4) },lp(-1,50,0,0,0,21))
 
+        section(column,"YouTube Music")
+        infoCard(column,"Catálogo oficial do YouTube Music",
+            "A reprodução usa a página oficial. Pode abrir no app do YouTube Music caso o navegador integrado seja bloqueado.",
+            "ABRIR YOUTUBE MUSIC") { openYouTubeMusic() }
         section(column,"Sobre")
-        column.addView(text("NOX MUSIC  0.3.0 ALPHA",12f,light,true))
+        column.addView(text("NOX MUSIC  0.4.0 ALPHA",12f,light,true))
         column.addView(text("Android nativo • Audius • Jamendo • arquivos locais",12f,secondary),lp(-1,-2,0,8))
         column.addView(text("Sem anúncios ou conta obrigatória. Nenhuma faixa comercial protegida é desbloqueada.",11f,secondary),lp(-1,-2,0,8))
     }
@@ -1725,7 +1775,7 @@ class MainActivity : Activity() {
             }
             column.addView(detailBar,lp(-1,42,0,0,0,15))
         }
-        column.addView(text("N O X   M U S I C   •   0.3.0", 10f, secondary, true).apply {
+        column.addView(text("N O X   M U S I C   •   0.4.0", 10f, secondary, true).apply {
             gravity = Gravity.CENTER
             letterSpacing = 0.08f
         }, lp(-1, -2, 0, 2))
