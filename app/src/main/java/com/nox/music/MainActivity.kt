@@ -943,7 +943,29 @@ class MainActivity : Activity() {
                     openTab(3)
                 }.show()
         }, LinearLayout.LayoutParams(0,dp(48),1f).apply { marginStart = dp(10) })
-        column.addView(buttons, lp(-1,48,0,0,0,18))
+        column.addView(buttons, lp(-1,48,0,0,0,10))
+        column.addView(actionLabel("✎  RENOMEAR PLAYLIST") {
+            val field=EditText(this).apply {
+                setSingleLine(true)
+                setTextColor(light)
+                setHintTextColor(secondary)
+                setText(selected.name)
+                setSelection(text.length)
+                setPadding(dp(16),dp(12),dp(16),dp(12))
+            }
+            AlertDialog.Builder(this).setTitle("Renomear playlist")
+                .setView(field)
+                .setNegativeButton("Cancelar",null)
+                .setPositiveButton("Salvar") { _,_ ->
+                    val updatedName=field.text.toString().trim()
+                    if(updatedName.isNotBlank()) {
+                        libraryDb.renamePlaylist(selected.id,updatedName)
+                        renderPage()
+                    } else {
+                        Toast.makeText(this,"Digite um nome válido.",Toast.LENGTH_SHORT).show()
+                    }
+                }.show()
+        },lp(-1,43,0,0,0,20))
         if (songs.isEmpty()) {
             infoCard(column, "Playlist vazia", "Use o menu ⋮ de qualquer música para adicioná-la.", "BUSCAR MÚSICAS") { openTab(1) }
         } else {

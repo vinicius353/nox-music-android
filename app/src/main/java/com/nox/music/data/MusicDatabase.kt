@@ -68,6 +68,14 @@ class MusicDatabase(context: Context) :
     }
 
     @Synchronized
+    fun renamePlaylist(id: Long, name: String) {
+        val clean=name.trim().take(64)
+        require(clean.isNotEmpty()) { "Nome obrigatório" }
+        writableDatabase.update("playlists",ContentValues().apply { put("name",clean) },
+            "id=?",arrayOf(id.toString()))
+    }
+
+    @Synchronized
     fun deletePlaylist(id: Long) {
         writableDatabase.beginTransaction()
         try {
