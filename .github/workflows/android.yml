@@ -22,7 +22,19 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
-      - name: Build debug APK (signed with Android debug key)
+      - name: Configure persistent test signing (optional)
+        env:
+          NOX_KEYSTORE_BASE64: ${{ secrets.NOX_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$NOX_KEYSTORE_BASE64" ]; then
+            printf '%s' "$NOX_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/nox-keystore.jks"
+            echo "NOX_KEYSTORE_PATH=$RUNNER_TEMP/nox-keystore.jks" >> "$GITHUB_ENV"
+          fi
+      - name: Build and test APK
+        env:
+          NOX_KEYSTORE_PASSWORD: ${{ secrets.NOX_KEYSTORE_PASSWORD }}
+          NOX_KEY_ALIAS: ${{ secrets.NOX_KEY_ALIAS }}
+          NOX_KEY_PASSWORD: ${{ secrets.NOX_KEY_PASSWORD }}
         run: gradle :app:testDebugUnitTest :app:assembleDebug --stacktrace
       - name: Upload installable APK
         uses: actions/upload-artifact@v4

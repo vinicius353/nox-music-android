@@ -4,7 +4,24 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
+val signingKeyFile=System.getenv("NOX_KEYSTORE_PATH")
+val signingStorePassword=System.getenv("NOX_KEYSTORE_PASSWORD")
+val signingAlias=System.getenv("NOX_KEY_ALIAS")
+val signingKeyPassword=System.getenv("NOX_KEY_PASSWORD")
+val hasSigningKey=listOf(signingKeyFile,signingStorePassword,signingAlias,signingKeyPassword)
+    .all { !it.isNullOrBlank() }
+
 android {
+    signingConfigs {
+        if(hasSigningKey) {
+            create("noxPersistent") {
+                storeFile=file(signingKeyFile!!)
+                storePassword=signingStorePassword
+                keyAlias=signingAlias
+                keyPassword=signingKeyPassword
+            }
+        }
+    }
     namespace = "com.nox.music"
     compileSdk = 36
     defaultConfig {
@@ -15,6 +32,9 @@ android {
         versionName = "0.3.0-alpha"
     }
     buildTypes {
+        getByName("debug") {
+            if(hasSigningKey) signingConfig=signingConfigs.getByName("noxPersistent")
+        }
         getByName("release") {
             isMinifyEnabled = true
             isShrinkResources = true

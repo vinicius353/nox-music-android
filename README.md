@@ -33,7 +33,7 @@ Requires Java 17, Gradle 8.13 and Android SDK 36.
 gradle :app:testDebugUnitTest :app:assembleDebug
 ```
 
-The GitHub Actions workflow runs unit tests, assembles a signed **debug** APK and uploads it under the corresponding run's **Artifacts** section for `feature/nox-0.3.0-premium`. Release signing is **not** configured. Android debug signatures can differ between builds; a signature mismatch may require uninstalling the old debug APK (which deletes its local app data). Use a persistent private keystore for upgrades in a production release.
+The GitHub Actions workflow runs unit tests, assembles a signed **debug** APK and uploads it under the corresponding run's **Artifacts** section for `feature/nox-0.3.0-premium`. Release signing is **not** configured by default. For **repeatable debug-APK upgrades**, set four repository Actions secrets: `NOX_KEYSTORE_BASE64` (Base64-encoded private Android keystore), `NOX_KEYSTORE_PASSWORD`, `NOX_KEY_ALIAS`, `NOX_KEY_PASSWORD`. The workflow then signs builds consistently using that private keystore; never commit a .jks to a public repository. Android debug signatures can differ between builds; a signature mismatch may require uninstalling the old debug APK (which deletes its local app data). Use a persistent private keystore for upgrades in a production release.
 
 ## Privacy & content
 
