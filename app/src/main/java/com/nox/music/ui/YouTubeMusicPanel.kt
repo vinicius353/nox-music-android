@@ -22,7 +22,6 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
-import java.net.URLEncoder
 
 /**
  * NOX's separate, first-party YouTube Music website surface.
@@ -34,14 +33,11 @@ import java.net.URLEncoder
  */
 class YouTubeMusicPanel(private val activity: Activity) {
     companion object {
-        const val HOME = "https://music.youtube.com/"
+        const val HOME = YouTubeMusicUrl.HOME
 
-        fun destination(query: String?): String =
-            if (query.isNullOrBlank()) HOME
-            else "https://music.youtube.com/search?q=" + URLEncoder.encode(query.trim(), "UTF-8")
+        fun destination(query: String?): String = YouTubeMusicUrl.destination(query)
 
-        fun isYouTubeMusic(url: Uri): Boolean =
-            url.scheme == "https" && url.host.equals("music.youtube.com", ignoreCase = true)
+        fun isYouTubeMusic(url: Uri): Boolean = YouTubeMusicUrl.isTrustedSite(url.toString())
     }
 
     private val bg = Color.rgb(6, 6, 6)
