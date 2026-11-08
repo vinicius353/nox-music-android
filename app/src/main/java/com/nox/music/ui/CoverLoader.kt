@@ -6,6 +6,8 @@ import coil3.ImageLoader
 import coil3.load
 import coil3.memory.MemoryCache
 import coil3.disk.DiskCache
+import coil3.request.crossfade
+import okio.Path.Companion.toOkioPath
 import java.io.File
 
 /** Two-level bounded caching with image request lifecycle management. */
@@ -20,7 +22,7 @@ class CoverLoader(context: Context) {
         }
         .diskCache {
             DiskCache.Builder()
-                .directory(imageCacheDir)
+                .directory(imageCacheDir.toOkioPath())
                 .maxSizeBytes(80L * 1024 * 1024)
                 .build()
         }
