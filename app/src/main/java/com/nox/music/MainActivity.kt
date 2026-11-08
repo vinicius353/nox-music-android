@@ -11,6 +11,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
@@ -64,8 +65,12 @@ class MainActivity : Activity() {
     private lateinit var favorites: FavoritesStore
     private lateinit var libraryDb: MusicDatabase
     private val audius = AudiusRepository()
-    private val covers = CoverLoader()
+    private lateinit var covers: CoverLoader
     private var trendingTracks: List<Track> = emptyList()
+    private var jamendoPopularTracks: List<Track> = emptyList()
+    private var jamendoLoading = false
+    private var jamendoError: String? = null
+    private var searchPendingSources = 0
     private var onlineTracks: List<Track> = emptyList()
     private var onlineLoading = false
     private var onlineError: String? = null
@@ -81,6 +86,7 @@ class MainActivity : Activity() {
     private var priorTab = 0
     private var lastHistoryId = ""
     private var miniArtworkId = ""
+    private var miniProgress: View? = null
     private lateinit var root: FrameLayout
     private lateinit var content: FrameLayout
     private lateinit var nav: LinearLayout
@@ -133,7 +139,9 @@ class MainActivity : Activity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
+        covers = CoverLoader(applicationContext)
         favorites = FavoritesStore(this)
         libraryDb = MusicDatabase(this)
         @Suppress("DEPRECATION")
@@ -146,6 +154,7 @@ class MainActivity : Activity() {
         connectPlayback()
         if (hasAudioPermission()) loadLocal() else requestAudioPermission()
         loadTrending()
+        loadJamendoPopular()
     }
 
     override fun onResume() {
@@ -400,42 +409,111 @@ class MainActivity : Activity() {
     }
 
     private fun home(column: LinearLayout) {
-        heading(column, "Bem-vindo ao NOX", "Sua música. Seu espaço.", "Ouça faixas reais, sem depender de rádio.")
+        val greeting = when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
+            in 5..11 -> "Bom dia"
+            in 12..17 -> "Boa tarde"
+            else -> "Boa noite"
+        }
+        column.addView(text(greeting.uppercase(),10f,secondary,true).apply { letterSpacing = 0.15f },
+            lp(-1,-2,0,3,0,9))
+        column.addView(text("Tudo em um só lugar.",29f,light,true),lp(-1,-2,0,0,0,7))
+        column.addView(text("Música sem distrações.",13f,secondary),lp(-1,-2,0,0,0,22))
+
+        val latest = libraryDb.history(1).firstOrNull()
+        val recommended = latest ?: jamendoPopularTracks.firstOrNull() ?: trendingTracks.firstOrNull()
         val hero = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = shape(Color.rgb(20, 20, 20), 19)
-            setPadding(dp(16), dp(16), dp(13), dp(16))
-            setOnClickListener { openTab(1) }
+            setPadding(dp(17),dp(18),dp(13),dp(18))
+            background = gradient(Color.rgb(37,37,37),Color.rgb(18,18,18),radius=22)
+            setOnClickListener {
+                if (recommended != null) startTrack(listOf(recommended),0) else openTab(1)
+            }
         }
-        hero.addView(artwork(trendingTracks.firstOrNull(), 76, 15), lp(76, 76, 0, 0, 14))
-        val heroWords = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        heroWords.addView(text("DESCUBRA", 10f, secondary, true))
-        heroWords.addView(text("Uma música para agora.", 18f, light, true), lp(-1,-2,0,5))
-        heroWords.addView(text("Buscar músicas  →", 12f, light), lp(-1,-2,0,8))
-        hero.addView(heroWords, LinearLayout.LayoutParams(0,-2,1f))
-        column.addView(hero, lp(-1,-2,0,0,0,26))
-        section(column, "Em alta no Audius", "Ver mais") { openTab(1) }
+        hero.addView(artwork(recommended,91,14),lp(91,91,0,0,15))
+        val heroInfo = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        heroInfo.addView(text(if(latest != null) "CONTINUE OUVINDO" else "DESTAQUE NOX",10f,secondary,true)
+            .apply { letterSpacing = 0.14f })
+        heroInfo.addView(text(recommended?.title ?: "Encontre seu som.",17f,light,true)
+            .apply { maxLines=2 },lp(-1,-2,0,8))
+        heroInfo.addView(text(recommended?.artist ?: "Explore músicas online",11f,secondary),
+            lp(-1,-2,0,7))
+        heroInfo.addView(text("▶  REPRODUZIR",11f,light,true),lp(-1,-2,0,12))
+        hero.addView(heroInfo,LinearLayout.LayoutParams(0,-2,1f))
+        column.addView(hero,lp(-1,-2,0,0,0,18))
+
+        val shortcuts = LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
+        val links=listOf(Triple("Buscar",R.drawable.ic_search,1),Triple("Offline",R.drawable.ic_library,2),
+            Triple("Playlists",R.drawable.ic_heart,3))
+        for ((name,drawable,destination) in links) {
+            val chip=LinearLayout(this).apply {
+                gravity=Gravity.CENTER
+                orientation=LinearLayout.HORIZONTAL
+                background=shape(card,14)
+                setOnClickListener { openTab(destination) }
+            }
+            chip.addView(icon(drawable,17,light),lp(17,17,0,0,7))
+            chip.addView(text(name,12f,light,true))
+            shortcuts.addView(chip,LinearLayout.LayoutParams(0,dp(51),1f).apply {
+                marginEnd=dp(7)
+            })
+        }
+        column.addView(shortcuts,lp(-1,51,0,0,0,29))
+
+        val recent=libraryDb.history(8)
+        if(recent.isNotEmpty()) {
+            section(column,"Recentes","Ver coleção") { openTab(3) }
+            val horizontal=HorizontalScrollView(this).apply {
+                isHorizontalScrollBarEnabled=false
+                overScrollMode=View.OVER_SCROLL_NEVER
+            }
+            val tiles=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
+            for(track in recent.take(8)) {
+                val tile=LinearLayout(this).apply {
+                    orientation=LinearLayout.VERTICAL
+                    setOnClickListener { startTrack(recent, recent.indexOf(track)) }
+                }
+                tile.addView(artwork(track,102,16),lp(102,102,0,0,0,9))
+                tile.addView(text(track.title,12f,light,true).apply { maxLines=1 },lp(102,-2))
+                tile.addView(text(track.artist,10f,secondary).apply { maxLines=1 },lp(102,-2,0,5))
+                tiles.addView(tile,lp(102,-2,0,0,13,0))
+            }
+            horizontal.addView(tiles)
+            column.addView(horizontal,lp(-1,-2,0,0,0,27))
+        }
+        section(column,"Descobertas Jamendo","Buscar") { openTab(1) }
         when {
-            onlineLoading && trendingTracks.isEmpty() ->
-                column.addView(text("Carregando novidades...", 13f, secondary), lp(-1,-2,0,8))
-            trendingTracks.isEmpty() ->
-                infoCard(column, "Catálogo não disponível", "Confira a conexão e tente novamente.", "ATUALIZAR") { loadTrending() }
-            else -> addRows(column, trendingTracks.take(6), trendingTracks)
+            jamendoLoading && jamendoPopularTracks.isEmpty() -> sectionSkeleton(column,3)
+            jamendoPopularTracks.isEmpty() -> infoCard(column,
+                "Jamendo indisponível",
+                if (jamendoError != null) "Não conseguimos carregar esse catálogo agora."
+                else "Novas descobertas aparecerão aqui.",
+                "TENTAR DE NOVO") { loadJamendoPopular() }
+            else -> addRows(column,jamendoPopularTracks.take(5),jamendoPopularTracks)
         }
-        column.addView(View(this), lp(-1,20))
-        section(column, "Ouvidas recentemente", "Histórico") { openTab(3) }
-        val recent = libraryDb.history(4)
-        if (recent.isEmpty()) column.addView(text("As músicas reproduzidas aparecerão aqui.", 12f, secondary))
-        else addRows(column, recent, recent)
-        column.addView(View(this), lp(-1,24))
-        section(column, "No dispositivo", "Biblioteca") { openTab(2) }
-        if (localTracks.isEmpty()) {
-            infoCard(column, "Suas músicas locais", "Áudio do celular, sem conexão.", "ABRIR BIBLIOTECA") { openTab(2) }
-        } else addRows(column, localTracks.take(4), localTracks)
-        column.addView(View(this), lp(-1,23))
-        section(column, "Rádio ao vivo", "Explorar") { openTab(4) }
-        column.addView(text("Estações gratuitas continuam disponíveis como opção secundária.", 12f, secondary))
+        column.addView(View(this),lp(-1,23))
+        section(column,"Em alta no Audius","Explorar") { openTab(1) }
+        when {
+            onlineLoading && trendingTracks.isEmpty() -> sectionSkeleton(column,3)
+            trendingTracks.isEmpty() -> infoCard(column,"Audius indisponível",
+                "Confira sua conexão e tente novamente.","RECARREGAR") { loadTrending() }
+            else -> addRows(column,trendingTracks.take(5),trendingTracks)
+        }
+        column.addView(View(this),lp(-1,25))
+        section(column,"Sua biblioteca","Ver tudo") { openTab(2) }
+        if(localTracks.isEmpty()) {
+            infoCard(column,"Arquivos do dispositivo","MP3, FLAC e outros formatos compatíveis.",
+                "ABRIR BIBLIOTECA") { openTab(2) }
+        } else addRows(column,localTracks.take(4),localTracks)
+        column.addView(View(this),lp(-1,23))
+        val playlists=libraryDb.playlists().take(3)
+        if(playlists.isNotEmpty()) {
+            section(column,"Suas playlists","Ver todas") { openTab(3) }
+            for(list in playlists) column.addView(actionLabel("☷   "+list.name) {
+                selectedPlaylistId=list.id
+                openTab(6)
+            },lp(-1,48,0,0,0,7))
+        }
     }
 
     private fun searchPage(column: LinearLayout) {
@@ -1025,6 +1103,30 @@ class MainActivity : Activity() {
             box.addView(link)
         }
         column.addView(box, lp(-1, -2, 0, 0, 0, 9))
+    }
+
+    private fun jamendoClientId(): String {
+        val prefs = getSharedPreferences("nox_settings", MODE_PRIVATE)
+        if (!prefs.getBoolean("jamendo_enabled", true)) return ""
+        return prefs.getString("jamendo_id", JamendoRepository.DEFAULT_ID)
+            .orEmpty().ifBlank { JamendoRepository.DEFAULT_ID }
+    }
+
+    private fun sectionSkeleton(target: LinearLayout, rows: Int = 3) {
+        repeat(rows) {
+            val skeleton = LinearLayout(this).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(4), dp(7), dp(4), dp(7))
+            }
+            skeleton.addView(View(this).apply {
+                background = shape(Color.rgb(38,38,38), 12)
+            }, lp(49,49,0,0,13))
+            val bars = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            bars.addView(View(this).apply { background = shape(Color.rgb(39,39,39),6) },lp(148,12,0,0,0,9))
+            bars.addView(View(this).apply { background = shape(Color.rgb(29,29,29),6) },lp(92,8))
+            skeleton.addView(bars)
+            target.addView(skeleton,lp(-1,65))
+        }
     }
 
     private fun actionLabel(label: String, action: () -> Unit): TextView = text(label, 12f, accent, true).apply {
