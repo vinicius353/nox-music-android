@@ -1,7 +1,7 @@
 name: Android APK
 on:
   push:
-    branches: [main, 'feature/nox-0.2.0', 'feature/nox-0.3.0-premium', 'feature/nox-0.4.0-ytmusic', 'feature/nox-0.5.0-innertune']
+    branches: [main, 'feature/nox-0.2.0', 'feature/nox-0.3.0-premium', 'feature/nox-0.4.0-ytmusic', 'feature/nox-0.5.0-innertune', 'feature/nox-0.5.1-playback-diagnostics']
   workflow_dispatch:
 
 jobs:
@@ -46,7 +46,7 @@ jobs:
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: NOX-Music-0.5.0-alpha-debug
+          name: NOX-Music-0.5.1-diagnostics-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30

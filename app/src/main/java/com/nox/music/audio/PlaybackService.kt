@@ -33,7 +33,13 @@ class PlaybackService : MediaSessionService() {
             if (uri.scheme == "https" && uri.host == "music.youtube.com" && uri.path == "/watch") {
                 val videoId = uri.getQueryParameter("v")
                     ?: throw IllegalArgumentException("Faixa YouTube sem identificador")
-                val nativeStreamUri = youtube.resolve(videoId)
+                val nativeStreamUri = try {
+                    youtube.resolve(videoId)
+                } catch (e: Exception) {
+                    // No raw URL, cookies or request bodies in logs or error dialogs.
+                    android.util.Log.w("NOXPlayback", "RESOLVE failed (${e.javaClass.simpleName})")
+                    throw java.io.IOException("NOX_YOUTUBE_RESOLVE_FAILED", e)
+                }
                 dataSpec.withUri(Uri.parse(nativeStreamUri))
             } else {
                 dataSpec

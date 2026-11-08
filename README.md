@@ -1,3 +1,7 @@
+## 0.5.1 — Diagnóstico de reprodução
+
+Pesquisa de músicas pelo InnerTune funciona em alguns dispositivos, mas a reprodução pode falhar. Esta build **não afirma corrigir streaming**: ela apresenta os códigos de erro Media3, HTTP, a etapa da falha e um botão **COPIAR ERRO**. Os relatórios omitem URLs de streaming, cookies, informações da conta e nomes das músicas. Use o relatório para identificar se o problema é o retorno do InnerTube ou a leitura pelo Media3. Android WebView não foi reintroduzido.
+
 # NOX Music
 
 Android music player, written in Kotlin, with a black/white/gray theme and an original NOX UI.

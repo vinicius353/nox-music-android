@@ -138,9 +138,28 @@ class MainActivity : Activity() {
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) = syncPlayback()
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-            Toast.makeText(this@MainActivity,
-                "Falha ao reproduzir. Verifique a conexão ou tente outra faixa.",
-                Toast.LENGTH_LONG).show()
+            val diagnostics = com.nox.music.audio.PlaybackDiagnostics.describe(error)
+            android.util.Log.w("NOXPlayback", diagnostics)
+            if (isFinishing || isDestroyed) return
+            if (currentTrack()?.source != Source.YOUTUBE) {
+                Toast.makeText(this@MainActivity,
+                    "Falha ao reproduzir. Verifique a conexão ou tente outra faixa.",
+                    Toast.LENGTH_LONG).show()
+                return
+            }
+            val report = "NOX Music 0.5.1 | YouTube Music\n" + diagnostics
+            AlertDialog.Builder(this@MainActivity)
+                .setTitle("A música não tocou")
+                .setMessage(com.nox.music.audio.PlaybackDiagnostics.advice(error) +
+                    "\n\nDiagnóstico (sem links ou dados privados):\n" + diagnostics)
+                .setNegativeButton("FECHAR", null)
+                .setPositiveButton("COPIAR ERRO") { _, _ ->
+                    val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                        as android.content.ClipboardManager
+                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("NOX diagnóstico", report))
+                    Toast.makeText(this@MainActivity, "Erro copiado", Toast.LENGTH_SHORT).show()
+                }
+                .show()
         }
     }
     private val ticker = object : Runnable {
