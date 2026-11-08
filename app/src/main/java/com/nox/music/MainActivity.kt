@@ -569,6 +569,149 @@ class MainActivity : Activity() {
         }
     }
 
+    /** The native YouTube Music catalog screen uses NOX's player and library, not WebView. */
+    private fun youtubePage(column: LinearLayout) {
+        heading(column, "POWERED BY INNERTUNE", "YouTube Music",
+            "Escolha uma faixa e escute no player do NOX, inclusive fora do aplicativo.")
+        val input = searchInput("Buscar músicas, artistas e álbuns...") { value ->
+            val trimmed = value.trim()
+            if (trimmed == youtubeSearchQuery) return@searchInput
+            youtubeSearchQuery = trimmed
+            youtubeDebounce?.let(handler::removeCallbacks)
+            if (trimmed.isBlank()) {
+                ++youtubeRequest
+                youtubeLoading = false
+                youtubeError = null
+                youtubeTracks = emptyList()
+                renderYoutubeRows()
+            } else {
+                youtubeLoading = true
+                youtubeError = null
+                renderYoutubeRows()
+                val search = Runnable { requestYouTubeSearch(trimmed) }
+                youtubeDebounce = search
+                handler.postDelayed(search, 420)
+            }
+        }
+        column.addView(input, lp(-1, 52, 0, 0, 0, 16))
+        if (youtubeSearchQuery.isNotBlank()) {
+            input.setText(youtubeSearchQuery)
+            input.setSelection(input.length())
+        }
+        val genres = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+        }
+        val chipRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        for (genre in listOf("Rock", "Pop", "Hip-Hop", "Lo-fi", "Anime", "Eletrônica")) {
+            val chip = text(genre, 12f, light).apply {
+                gravity = Gravity.CENTER
+                background = shape(card, 26)
+                setPadding(dp(14),dp(10),dp(14),dp(10))
+                setOnClickListener {
+                    input.setText(genre)
+                    input.setSelection(input.length())
+                }
+            }
+            chipRow.addView(chip, lp(-2, -2, 0, 0, 8))
+        }
+        genres.addView(chipRow)
+        column.addView(genres, lp(-1,46,0,0,0,19))
+        val status = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        youtubeResults = status
+        column.addView(status)
+        renderYoutubeRows()
+        column.addView(View(this),lp(-1,21))
+        column.addView(text(
+            "Fonte não oficial baseada no InnerTune (GPL-3.0). A disponibilidade depende do YouTube Music.",
+            11f, secondary
+        ))
+    }
+
+    private fun requestYouTubeSearch(query: String) {
+        if (query.isBlank()) return
+        val request = ++youtubeRequest
+        youtubeLoading = true
+        youtubeError = null
+        if (tab == 10) renderYoutubeRows()
+        io.execute {
+            val result = runCatching { youtube.search(query, 45) }
+            runOnUiThread {
+                if (isFinishing || isDestroyed || request != youtubeRequest || youtubeSearchQuery != query)
+                    return@runOnUiThread
+                youtubeTracks = result.getOrDefault(emptyList())
+                youtubeError = result.exceptionOrNull()?.localizedMessage
+                youtubeLoading = false
+                if (tab == 10) renderYoutubeRows()
+            }
+        }
+    }
+
+    private fun renderYoutubeRows() {
+        val rows = youtubeResults ?: return
+        rows.removeAllViews()
+        when {
+            youtubeSearchQuery.isBlank() -> {
+                section(rows, "Pesquise no YouTube Music")
+                infoCard(rows, "Um catálogo muito maior",
+                    "Digite o nome de uma música ou artista. Salve as faixas encontradas nas playlists do NOX.",
+                    null, null)
+            }
+            youtubeLoading && youtubeTracks.isEmpty() -> {
+                section(rows, "Buscando músicas")
+                sectionSkeleton(rows, 4)
+            }
+            youtubeTracks.isEmpty() -> {
+                section(rows, if (youtubeError == null) "Nenhum resultado" else "Fonte indisponível")
+                infoCard(rows, "Não conseguimos encontrar faixas",
+                    if (youtubeError == null) "Tente outra pesquisa."
+                    else "O serviço pode ter alterado sua API. Verifique a conexão ou tente novamente.",
+                    "TENTAR NOVAMENTE") { requestYouTubeSearch(youtubeSearchQuery) }
+            }
+            else -> {
+                section(rows, "${youtubeTracks.size} músicas encontradas")
+                addRows(rows, youtubeTracks, youtubeTracks)
+            }
+        }
+    }
+
+    private fun creditsPage(column: LinearLayout) {
+        column.addView(actionLabel("‹  VOLTAR ÀS CONFIGURAÇÕES") { openTab(5) },
+            lp(-1,48,0,0,0,20))
+        heading(column, "CÓDIGO ABERTO", "Créditos & licenças",
+            "Reconhecimento aos projetos que tornam o NOX possível.")
+        section(column, "InnerTune")
+        infoCard(column, "z-huang e colaboradores",
+            "A integração de pesquisa e reprodução YouTube Music reutiliza o módulo innertube, desenvolvido no projeto InnerTune.",
+            "REPOSITÓRIO ORIGINAL") {
+            startActivity(Intent(Intent.ACTION_VIEW,
+                Uri.parse("https://github.com/z-huang/InnerTune")))
+        }
+        column.addView(View(this),lp(-1,19))
+        section(column, "ViMusic")
+        column.addView(text("InnerTune reconhece vfsfitvnm/ViMusic como influência original para seu player Android.",
+            13f, secondary),lp(-1,-2,0,0,0,13))
+        column.addView(actionLabel("VER PROJETO VIMUSIC  ↗") {
+            startActivity(Intent(Intent.ACTION_VIEW,
+                Uri.parse("https://github.com/vfsfitvnm/ViMusic")))
+        },lp(-1,45,0,0,0,23))
+        section(column, "GNU GPL v3")
+        column.addView(text(
+            "O código do InnerTune está licenciado sob GPL-3.0. O NOX Music também disponibiliza seu código sob essa licença. Consulte os textos e os créditos completos no GitHub.",
+            12f, secondary),lp(-1,-2,0,0,0,16))
+        column.addView(actionLabel("LER LICENÇA GPL-3.0  ↗") {
+            startActivity(Intent(Intent.ACTION_VIEW,
+                Uri.parse("https://github.com/vinicius353/nox-music-android/blob/feature/nox-0.5.0-innertune/LICENSE")))
+        },lp(-1,48,0,0,0,12))
+        column.addView(actionLabel("VER CRÉDITOS E CÓDIGO NOX  ↗") {
+            startActivity(Intent(Intent.ACTION_VIEW,
+                Uri.parse("https://github.com/vinicius353/nox-music-android/blob/feature/nox-0.5.0-innertune/THIRD_PARTY_NOTICES.md")))
+        },lp(-1,48,0,0,0,20))
+        column.addView(text(
+            "NOX Music não é afiliado, autorizado ou endossado pelo YouTube, Google ou pela equipe do InnerTune.",
+            11f, secondary))
+    }
+
     private fun searchPage(column: LinearLayout) {
         heading(column, "Streaming gratuito", "Encontre sua próxima música.", "Busque por faixa, álbum ou artista.")
         val input = searchInput("Nome da música ou artista...") { value ->
