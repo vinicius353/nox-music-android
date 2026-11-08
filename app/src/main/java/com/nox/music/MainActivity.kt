@@ -87,6 +87,7 @@ class MainActivity : Activity() {
     private var lastHistoryId = ""
     private var miniArtworkId = ""
     private var miniProgress: View? = null
+    private var miniContainer: FrameLayout? = null
     private lateinit var root: FrameLayout
     private lateinit var content: FrameLayout
     private lateinit var nav: LinearLayout
@@ -249,13 +250,11 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(22), dp(12), dp(18), dp(10))
         }
-        val mark = TextView(this).apply {
-            text = "N"
-            textSize = 20f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(bgColor)
-            gravity = Gravity.CENTER
-            background = shape(accent, 13)
+        val mark = ImageView(this).apply {
+            setImageResource(R.drawable.ic_launcher_foreground)
+            background = shape(Color.rgb(18,18,18), 12)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            contentDescription = "NOX Music"
         }
         header.addView(mark, lp(42, 42, 0, 0, 12, 0))
         val brand = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -300,7 +299,21 @@ class MainActivity : Activity() {
             setOnClickListener { player?.seekToNextMediaItem() }
         }
         mini.addView(next, lp(27, 27))
-        column.addView(mini, lp(-1, 64, 12, 1, 12, 2))
+        val miniFrame = FrameLayout(this).apply {
+            visibility = View.GONE
+            clipToPadding = false
+        }
+        miniContainer = miniFrame
+        mini.visibility = View.VISIBLE
+        miniFrame.addView(mini, FrameLayout.LayoutParams(-1, dp(63), Gravity.CENTER))
+        miniProgress = View(this).apply {
+            setBackgroundColor(Color.rgb(232,232,232))
+            pivotX = 0f
+            scaleX = 0f
+            visibility = View.INVISIBLE
+        }
+        miniFrame.addView(miniProgress,FrameLayout.LayoutParams(-1,dp(2),Gravity.BOTTOM))
+        column.addView(miniFrame,lp(-1,65,12,1,12,2))
 
         nav = LinearLayout(this).apply {
             gravity = Gravity.CENTER
@@ -1450,8 +1463,11 @@ class MainActivity : Activity() {
         if (!::mini.isInitialized) return
         val playback = player
         val track = currentTrack()
-        mini.visibility = if (track == null) View.GONE else View.VISIBLE
-        if (track == null || playback == null) return
+        miniContainer?.visibility = if (track == null) View.GONE else View.VISIBLE
+        if (track == null || playback == null) {
+            miniProgress?.visibility = View.INVISIBLE
+            return
+        }
         if (playback.isPlaying && lastHistoryId != track.id) {
             lastHistoryId = track.id
             stateIo.execute { libraryDb.recordPlayed(track) }
@@ -1477,6 +1493,10 @@ class MainActivity : Activity() {
         playerRepeat?.setTextColor(if (playback.repeatMode != Player.REPEAT_MODE_OFF) accent else secondary)
         val duration = playback.duration
         val seekable = !track.isLive && duration > 0 && duration != C.TIME_UNSET
+        miniProgress?.apply {
+            visibility = if(seekable) View.VISIBLE else View.INVISIBLE
+            scaleX = if(seekable) (playback.currentPosition.toFloat() / duration.toFloat()).coerceIn(0f,1f) else 0f
+        }
         playerProgress?.apply {
             isEnabled = seekable
             if (!seeking) {
@@ -1516,7 +1536,7 @@ class MainActivity : Activity() {
             setOnClickListener { closePlayer() }
         }
         top.addView(down, lp(30, 30))
-        val title = text("REPRODUZINDO AGORA", 11f, accent, true).apply {
+        val title = text("OUVINDO AGORA", 11f, accent, true).apply {
             gravity = Gravity.CENTER
             letterSpacing = 0.16f
         }
@@ -1525,16 +1545,16 @@ class MainActivity : Activity() {
         column.addView(top, lp(-1, 36, 0, 0, 0, 28))
 
         val widthDp = (resources.displayMetrics.widthPixels / resources.displayMetrics.density).toInt()
-        val artSize = min(270, (widthDp - 84).coerceAtLeast(160))
+        val artSize = min(302, (widthDp - 66).coerceAtLeast(155))
         val bigArt = artwork(currentTrack(), artSize, 28)
-        column.addView(bigArt, lp(artSize, artSize, 0, 0, 0, 27))
+        column.addView(bigArt, lp(artSize, artSize, 0, 0, 0, 31))
 
         val details = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
         val words = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        playerTitle = text("", 24f, light, true).apply { maxLines = 2 }
+        playerTitle = text("", 25f, light, true).apply { maxLines = 2 }
         playerArtist = text("", 14f, secondary).apply { maxLines = 1 }
         words.addView(playerTitle)
         words.addView(playerArtist, lp(-1, -2, 0, 8))
@@ -1548,7 +1568,7 @@ class MainActivity : Activity() {
                 if (tab == 7) renderPage()
             }
         }
-        details.addView(playerFavorite, lp(48, 48))
+        details.addView(playerFavorite, lp(42, 48))
         column.addView(details, lp(-1, -2, 0, 0, 0, 25))
 
         playerProgress = SeekBar(this).apply {
@@ -1649,7 +1669,7 @@ class MainActivity : Activity() {
             }
             column.addView(detailBar,lp(-1,42,0,0,0,15))
         }
-        column.addView(text("NOX MUSIC  •  0.3.0 ALPHA", 10f, secondary, true).apply {
+        column.addView(text("N O X   M U S I C   •   0.3.0", 10f, secondary, true).apply {
             gravity = Gravity.CENTER
             letterSpacing = 0.08f
         }, lp(-1, -2, 0, 2))
@@ -1658,7 +1678,7 @@ class MainActivity : Activity() {
         if (animations) {
             sheet.alpha = 0f
             sheet.translationY = dp(40).toFloat()
-            sheet.animate().alpha(1f).translationY(0f).setDuration(260)
+            sheet.animate().alpha(1f).translationY(0f).setDuration(210)
                 .setInterpolator(DecelerateInterpolator()).start()
         }
     }
