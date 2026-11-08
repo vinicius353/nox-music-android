@@ -4,6 +4,8 @@ import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.ComponentName
+import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Color
@@ -42,7 +44,7 @@ import com.nox.music.data.JamendoRepository
 import com.nox.music.data.MusicDatabase
 import com.nox.music.data.MusicPlaylist
 import com.nox.music.ui.CoverLoader
-import com.nox.music.ui.YouTubeMusicPanel
+import com.nox.music.data.YouTubeMusicRepository
 import com.nox.music.data.LocalMusicRepository
 import com.nox.music.data.RadioRepository
 import com.nox.music.audio.PlaybackService
@@ -89,8 +91,14 @@ class MainActivity : Activity() {
     private var miniArtworkId = ""
     private var miniProgress: View? = null
     private var miniContainer: FrameLayout? = null
-    private var youtubePanel: YouTubeMusicPanel? = null
-    private var youtubeSearchQuery: String? = null
+    private val youtube = YouTubeMusicRepository()
+    private var youtubeSearchQuery = ""
+    private var youtubeTracks: List<Track> = emptyList()
+    private var youtubeLoading = false
+    private var youtubeError: String? = null
+    private var youtubeRequest = 0
+    private var youtubeDebounce: Runnable? = null
+    private var youtubeResults: LinearLayout? = null
     private lateinit var root: FrameLayout
     private lateinit var content: FrameLayout
     private lateinit var nav: LinearLayout
@@ -165,19 +173,14 @@ class MainActivity : Activity() {
         super.onResume()
         handler.removeCallbacks(ticker)
         handler.post(ticker)
-        if (tab == 10 && youtubePanel == null && ::content.isInitialized) renderPage()
     }
 
     override fun onPause() {
         handler.removeCallbacks(ticker)
-        youtubePanel?.close()
-        youtubePanel = null
         super.onPause()
     }
 
     override fun onDestroy() {
-        youtubePanel?.close()
-        youtubePanel = null
         handler.removeCallbacksAndMessages(null)
         player?.removeListener(listener)
         controllerFuture?.let { MediaController.releaseFuture(it) }
@@ -204,9 +207,9 @@ class MainActivity : Activity() {
     override fun onBackPressed() {
         when {
             overlay != null -> closePlayer()
-            tab == 10 && youtubePanel?.canGoBack() == true -> youtubePanel?.goBack()
             tab == 10 -> openTab(0)
             tab in 6..9 -> openTab(if (priorTab in 0..5) priorTab else 3)
+            tab == 11 -> openTab(5)
             tab != 0 -> openTab(0)
             else -> super.onBackPressed()
         }
@@ -337,8 +340,10 @@ class MainActivity : Activity() {
     }
 
     private fun openYouTubeMusic(query: String? = null) {
-        player?.pause()
-        youtubeSearchQuery = query?.trim()?.takeIf { it.isNotBlank() }
+        if (!query.isNullOrBlank()) {
+            youtubeSearchQuery = query.trim()
+            requestYouTubeSearch(youtubeSearchQuery)
+        }
         openTab(10)
     }
 
@@ -372,10 +377,6 @@ class MainActivity : Activity() {
 
     private fun openTab(index: Int) {
         if (overlay != null) closePlayer(immediate = true)
-        if (tab == 10 && youtubePanel != null) {
-            youtubePanel?.close()
-            youtubePanel = null
-        }
         if (index >= 6 && tab <= 5) priorTab = tab
         tab = index
         searchResults = null
@@ -389,13 +390,7 @@ class MainActivity : Activity() {
         content.removeAllViews()
         searchResults = null
         radioContainer = null
-        if (tab == 10) {
-            val surface = YouTubeMusicPanel(this)
-            youtubePanel = surface
-            content.addView(surface.create(youtubeSearchQuery), FrameLayout.LayoutParams(-1, -1))
-            youtubeSearchQuery = null
-            return
-        }
+        youtubeResults = null
         val scroll = ScrollView(this).apply {
             isFillViewport = false
             clipToPadding = false
@@ -419,6 +414,8 @@ class MainActivity : Activity() {
             7 -> favoritesPage(column)
             8 -> queuePage(column)
             9 -> detailPage(column)
+            10 -> youtubePage(column)
+            11 -> creditsPage(column)
             else -> home(column)
         }
         if (getSharedPreferences("nox_settings", MODE_PRIVATE).getBoolean("animations", true)) {
@@ -1141,6 +1138,7 @@ class MainActivity : Activity() {
                         else JamendoRepository(clientId).artistTracks(owner.artistId)
                     }
                     Source.LOCAL -> localTracks.filter { if (album) it.album == owner.album else it.artist == owner.artist }
+                    Source.YOUTUBE -> youtube.search(if (album) owner.album else owner.artist, 45)
                     Source.RADIO -> emptyList()
                 }
             }.getOrDefault(emptyList())
@@ -1276,11 +1274,14 @@ class MainActivity : Activity() {
         column.addView(actionLabel("EXPLORAR RÁDIOS AO VIVO") { openTab(4) },lp(-1,50,0,0,0,21))
 
         section(column,"YouTube Music")
-        infoCard(column,"Catálogo oficial do YouTube Music",
-            "A reprodução usa a página oficial. Pode abrir no app do YouTube Music caso o navegador integrado seja bloqueado.",
-            "ABRIR YOUTUBE MUSIC") { openYouTubeMusic() }
+        infoCard(column,"InnerTune • YouTube Music nativo",
+            "Pesquisa e reprodução integradas ao player do NOX. Algumas músicas podem ficar indisponíveis por alterações nos serviços.",
+            "PESQUISAR MÚSICAS") { openYouTubeMusic() }
+        section(column,"Créditos e licenças")
+        column.addView(actionLabel("VER CRÉDITOS DO INNERTUNE  →") { openTab(11) },
+            lp(-1,50,0,0,0,15))
         section(column,"Sobre")
-        column.addView(text("NOX MUSIC  0.4.0 ALPHA",12f,light,true))
+        column.addView(text("NOX MUSIC  0.5.0 ALPHA",12f,light,true))
         column.addView(text("Android nativo • Audius • Jamendo • arquivos locais",12f,secondary),lp(-1,-2,0,8))
         column.addView(text("Sem anúncios ou conta obrigatória. Nenhuma faixa comercial protegida é desbloqueada.",11f,secondary),lp(-1,-2,0,8))
     }
@@ -1569,7 +1570,7 @@ class MainActivity : Activity() {
         if (!::mini.isInitialized) return
         val playback = player
         val track = currentTrack()
-        miniContainer?.visibility = if (track == null || tab == 10) View.GONE else View.VISIBLE
+        miniContainer?.visibility = if (track == null) View.GONE else View.VISIBLE
         if (track == null || playback == null) {
             miniProgress?.visibility = View.INVISIBLE
             return
@@ -1775,7 +1776,7 @@ class MainActivity : Activity() {
             }
             column.addView(detailBar,lp(-1,42,0,0,0,15))
         }
-        column.addView(text("N O X   M U S I C   •   0.4.0", 10f, secondary, true).apply {
+        column.addView(text("N O X   M U S I C   •   0.5.0", 10f, secondary, true).apply {
             gravity = Gravity.CENTER
             letterSpacing = 0.08f
         }, lp(-1, -2, 0, 2))
