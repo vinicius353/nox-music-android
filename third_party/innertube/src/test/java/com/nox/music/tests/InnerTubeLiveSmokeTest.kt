@@ -1,6 +1,9 @@
 package com.nox.music.tests
 
 import com.zionhuang.innertube.YouTube
+import com.zionhuang.innertube.InnerTube
+import com.zionhuang.innertube.models.YouTubeClient
+import io.ktor.client.statement.bodyAsText
 import com.zionhuang.innertube.models.SongItem
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue
@@ -14,6 +17,22 @@ class InnerTubeLiveSmokeTest {
     fun searchAndResolveAudio() {
         if (System.getenv("NOX_YOUTUBE_SMOKE") != "1") return
         runBlocking {
+            val client=InnerTube()
+            val filters=listOf(
+                "Unfiltered" to null,
+                "SongFilter" to YouTube.SearchFilter.FILTER_SONG.value,
+                "EmptyFilter" to ""
+            )
+            for ((label,params) in filters) {
+                try {
+                    val response=client.search(YouTubeClient.WEB_REMIX,"Coldplay Yellow",params)
+                    println("NOX raw search $label: HTTP " + response.status.value
+                        + " bytes=" + response.bodyAsText().length)
+                } catch(e: Exception) {
+                    println("NOX raw search $label failed: " + e::class.java.simpleName
+                        + " " + e.localizedMessage?.take(180))
+                }
+            }
             val result=YouTube.search("Coldplay Yellow",YouTube.SearchFilter.FILTER_SONG).getOrThrow()
             val sample=result.items.filterIsInstance<SongItem>().firstOrNull()
                 ?: error("YouTube Music search returned no SongItem")
