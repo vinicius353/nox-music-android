@@ -653,6 +653,283 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun collectionPage(column: LinearLayout) {
+        heading(column, "Biblioteca pessoal", "Sua coleção", "Playlists, favoritos, fila e histórico.")
+        val shortcuts = listOf(
+            Triple("♥  Favoritos", "${favorites.all().size} faixas", 7),
+            Triple("☷  Fila de reprodução", "${player?.mediaItemCount ?: activeQueue.size} na fila", 8)
+        )
+        for ((title, desc, destination) in shortcuts) {
+            val box = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(17), dp(16), dp(17), dp(16))
+                background = shape(card, 15)
+                setOnClickListener { openTab(destination) }
+            }
+            box.addView(text(title, 15f, light, true))
+            box.addView(text(desc, 12f, secondary), lp(-1,-2,0,6))
+            column.addView(box, lp(-1,-2,0,0,0,10))
+        }
+        column.addView(View(this), lp(-1,14))
+        section(column, "Suas playlists", "+ Criar") { promptCreatePlaylist(null) }
+        val playlists = libraryDb.playlists()
+        if (playlists.isEmpty()) {
+            infoCard(column, "Sua primeira playlist", "Crie uma coleção e salve músicas de qualquer fonte.", "NOVA PLAYLIST") { promptCreatePlaylist(null) }
+        } else {
+            for (list in playlists) {
+                val row = LinearLayout(this).apply {
+                    gravity = Gravity.CENTER_VERTICAL
+                    background = shape(card, 14)
+                    setPadding(dp(15), dp(12), dp(12), dp(12))
+                    setOnClickListener {
+                        selectedPlaylistId = list.id
+                        openTab(6)
+                    }
+                }
+                val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                info.addView(text(list.name, 15f, light, true))
+                info.addView(text("${list.count} faixas", 12f, secondary), lp(-1,-2,0,5))
+                row.addView(info, LinearLayout.LayoutParams(0,-2,1f))
+                row.addView(text("›", 26f, secondary), lp(20,-2))
+                column.addView(row, lp(-1,-2,0,0,0,9))
+            }
+        }
+        column.addView(View(this), lp(-1,17))
+        section(column, "Reproduzidas recentemente")
+        val recent = libraryDb.history(16)
+        if (recent.isEmpty()) column.addView(text("O histórico aparece depois que você reproduzir algo.", 12f, secondary))
+        else addRows(column, recent, recent)
+    }
+
+    private fun promptCreatePlaylist(addTrack: Track?) {
+        val field = EditText(this).apply {
+            hint = "Nome da playlist"
+            setSingleLine(true)
+            setTextColor(light)
+            setHintTextColor(secondary)
+            setPadding(dp(18), dp(12), dp(18), dp(12))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Nova playlist")
+            .setView(field)
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Criar") { _, _ ->
+                val name = field.text.toString().trim()
+                if (name.isBlank()) {
+                    Toast.makeText(this, "Digite um nome para a playlist.", Toast.LENGTH_SHORT).show()
+                } else {
+                    val id = libraryDb.createPlaylist(name)
+                    addTrack?.let { libraryDb.addToPlaylist(id, it) }
+                    Toast.makeText(this, "Playlist criada.", Toast.LENGTH_SHORT).show()
+                    if (tab == 3) renderPage()
+                    if (tab == 6) {
+                        selectedPlaylistId = id
+                        renderPage()
+                    }
+                }
+            }.show()
+    }
+
+    private fun addToPlaylistDialog(track: Track) {
+        val choices = libraryDb.playlists()
+        val labels = choices.map { it.name }.toMutableList().apply { add("+ Nova playlist") }
+        AlertDialog.Builder(this)
+            .setTitle("Adicionar à playlist")
+            .setItems(labels.toTypedArray()) { _, which ->
+                if (which == choices.size) promptCreatePlaylist(track)
+                else {
+                    libraryDb.addToPlaylist(choices[which].id, track)
+                    Toast.makeText(this, "Adicionado a ${choices[which].name}.", Toast.LENGTH_SHORT).show()
+                    if (tab == 6) renderPage()
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun playlistDetailPage(column: LinearLayout) {
+        val selected = libraryDb.playlists().firstOrNull { it.id == selectedPlaylistId }
+        if (selected == null) {
+            openTab(3)
+            return
+        }
+        column.addView(actionLabel("‹  VOLTAR À COLEÇÃO") { openTab(3) }, lp(-1,46,0,0,0,17))
+        heading(column, "Sua playlist", selected.name, "${selected.count} músicas")
+        val songs = libraryDb.playlistTracks(selected.id)
+        val buttons = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        buttons.addView(actionLabel("▶  REPRODUZIR") {
+            if (songs.isNotEmpty()) startTrack(songs, 0)
+        }, LinearLayout.LayoutParams(0,dp(48),1f))
+        buttons.addView(actionLabel("EXCLUIR") {
+            AlertDialog.Builder(this)
+                .setTitle("Excluir playlist?")
+                .setMessage("As músicas originais não serão apagadas.")
+                .setNegativeButton("Cancelar", null)
+                .setPositiveButton("Excluir") { _, _ ->
+                    libraryDb.deletePlaylist(selected.id)
+                    openTab(3)
+                }.show()
+        }, LinearLayout.LayoutParams(0,dp(48),1f).apply { marginStart = dp(10) })
+        column.addView(buttons, lp(-1,48,0,0,0,18))
+        if (songs.isEmpty()) {
+            infoCard(column, "Playlist vazia", "Use o menu ⋮ de qualquer música para adicioná-la.", "BUSCAR MÚSICAS") { openTab(1) }
+        } else {
+            songs.forEachIndexed { i, track ->
+                val row = LinearLayout(this).apply {
+                    gravity = Gravity.CENTER_VERTICAL
+                    setOnClickListener { startTrack(songs, i) }
+                }
+                row.addView(artwork(track, 46), lp(46,46,0,0,12))
+                val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                info.addView(text(track.title, 13f, light, true).apply { maxLines = 1 })
+                info.addView(text(track.artist, 11f, secondary), lp(-1,-2,0,5))
+                row.addView(info, LinearLayout.LayoutParams(0,-2,1f))
+                row.addView(text("⋮", 26f, secondary).apply {
+                    gravity = Gravity.CENTER
+                    setOnClickListener {
+                        AlertDialog.Builder(this@MainActivity).setTitle(track.title)
+                            .setItems(arrayOf("Remover", "Mover para cima", "Mover para baixo", "Adicionar à fila")) { _, action ->
+                                when (action) {
+                                    0 -> libraryDb.removeFromPlaylist(selected.id, i)
+                                    1 -> libraryDb.reorderPlaylist(selected.id, i, (i-1).coerceAtLeast(0))
+                                    2 -> libraryDb.reorderPlaylist(selected.id, i, (i+1).coerceAtMost(songs.lastIndex))
+                                    3 -> addToQueue(track)
+                                }
+                                if (action in 0..2) renderPage()
+                            }.show()
+                    }
+                }, lp(36,46))
+                column.addView(row, lp(-1,66))
+            }
+        }
+    }
+
+    private fun queuePage(column: LinearLayout) {
+        heading(column, "Reprodução", "Fila atual", "Altere a ordem ou adicione músicas.")
+        column.addView(actionLabel("‹  VOLTAR") { openTab(3) }, lp(-1,45,0,0,0,14))
+        if (activeQueue.isEmpty()) {
+            infoCard(column, "Fila vazia", "Escolha uma faixa para começar a ouvir.", "BUSCAR") { openTab(1) }
+            return
+        }
+        val playingIndex = player?.currentMediaItemIndex ?: 0
+        activeQueue.toList().forEachIndexed { i, track ->
+            val row = LinearLayout(this).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                setOnClickListener { player?.seekToDefaultPosition(i); player?.play() }
+            }
+            row.addView(artwork(track, 42), lp(42,42,0,0,10))
+            val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            info.addView(text((if (i == playingIndex) "♪  " else "") + track.title, 13f, light, i == playingIndex).apply { maxLines=1 })
+            info.addView(text(track.artist, 11f, secondary), lp(-1,-2,0,5))
+            row.addView(info, LinearLayout.LayoutParams(0,-2,1f))
+            row.addView(text("⋮", 25f, secondary).apply {
+                gravity = Gravity.CENTER
+                setOnClickListener {
+                    AlertDialog.Builder(this@MainActivity).setTitle(track.title)
+                        .setItems(arrayOf("Mover para cima", "Mover para baixo", "Remover da fila")) { _, action ->
+                            when (action) {
+                                0 -> moveQueueItem(i, i-1)
+                                1 -> moveQueueItem(i, i+1)
+                                2 -> removeQueueItem(i)
+                            }
+                            renderPage()
+                        }.show()
+                }
+            }, lp(38,46))
+            column.addView(row, lp(-1,61))
+        }
+    }
+
+    private fun moveQueueItem(from: Int, to: Int) {
+        val playback = player ?: return
+        if (from !in activeQueue.indices || to !in activeQueue.indices || from == to) return
+        val changed = activeQueue.toMutableList()
+        val item = changed.removeAt(from)
+        changed.add(to,item)
+        activeQueue = changed
+        playback.moveMediaItem(from,to)
+        persistQueue()
+    }
+
+    private fun removeQueueItem(index: Int) {
+        val playback = player ?: return
+        if (index !in activeQueue.indices) return
+        activeQueue = activeQueue.toMutableList().apply { removeAt(index) }
+        playback.removeMediaItem(index)
+        persistQueue()
+    }
+
+    private fun addToQueue(track: Track) {
+        val playback = player ?: return
+        if (playback.mediaItemCount == 0 || activeQueue.isEmpty()) {
+            startTrack(listOf(track), 0)
+        } else {
+            playback.addMediaItem(track.mediaItem())
+            activeQueue = activeQueue + track
+            persistQueue()
+            Toast.makeText(this, "Adicionado à fila.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun persistQueue() {
+        val items = activeQueue.toList()
+        val index = player?.currentMediaItemIndex ?: 0
+        io.execute { libraryDb.saveQueue(items,index) }
+    }
+
+    private fun openDetail(track: Track, album: Boolean) {
+        if (album && track.album.isBlank()) return
+        detailTrack = track
+        detailAlbum = album
+        detailResults = emptyList()
+        detailLoading = true
+        openTab(9)
+        val owner = track
+        io.execute {
+            val result = runCatching {
+                when (owner.source) {
+                    Source.AUDIOUS -> if (album) {
+                        if (owner.albumId.isBlank()) audius.search(owner.album).filter { it.album == owner.album }
+                        else audius.albumTracks(owner.albumId)
+                    } else audius.artistTracks(owner.artistId)
+                    Source.JAMENDO -> {
+                        val prefs = getSharedPreferences("nox_settings", MODE_PRIVATE)
+                        val clientId = prefs.getString("jamendo_id", "").orEmpty()
+                        if (clientId.isEmpty()) emptyList()
+                        else if (album) JamendoRepository(clientId).albumTracks(owner.albumId)
+                        else JamendoRepository(clientId).artistTracks(owner.artistId)
+                    }
+                    Source.LOCAL -> localTracks.filter { if (album) it.album == owner.album else it.artist == owner.artist }
+                    Source.RADIO -> emptyList()
+                }
+            }.getOrDefault(emptyList())
+            runOnUiThread {
+                if (isFinishing || isDestroyed || detailTrack?.id != owner.id || detailAlbum != album) return@runOnUiThread
+                detailResults = result
+                detailLoading = false
+                if (tab == 9) renderPage()
+            }
+        }
+    }
+
+    private fun detailPage(column: LinearLayout) {
+        val track = detailTrack ?: return
+        column.addView(actionLabel("‹  VOLTAR") { openTab(priorTab) }, lp(-1,45,0,0,0,17))
+        heading(column, if (detailAlbum) "Álbum" else "Artista",
+            if (detailAlbum) track.album else track.artist,
+            "${track.providerName} • ${detailResults.size} músicas")
+        if (detailLoading) {
+            column.addView(text("Carregando faixas...", 13f, secondary))
+        } else if (detailResults.isEmpty()) {
+            infoCard(column, "Não foi possível carregar mais faixas", "Esse provedor pode não fornecer os dados deste lançamento.", null, null)
+        } else {
+            column.addView(actionLabel("▶  REPRODUZIR TUDO") {
+                startTrack(detailResults,0)
+            }, lp(-1,48,0,0,0,15))
+            addRows(column, detailResults, detailResults)
+        }
+    }
+
     private fun settingsPage(column: LinearLayout) {
         heading(column, "Preferências", "Configurações", "NOX Music • versão 0.1.0 Alpha")
         section(column, "Reprodução")
