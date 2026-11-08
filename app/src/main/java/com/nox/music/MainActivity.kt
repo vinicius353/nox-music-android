@@ -430,6 +430,129 @@ class MainActivity : Activity() {
         column.addView(text("Estações gratuitas continuam disponíveis como opção secundária.", 12f, secondary))
     }
 
+    private fun searchPage(column: LinearLayout) {
+        heading(column, "Streaming gratuito", "Encontre sua próxima música.", "Busque por faixa, álbum ou artista.")
+        val input = searchInput("Nome da música ou artista...") { value ->
+            if (value == searchText) return@searchInput
+            searchText = value
+            searchDebounce?.let(handler::removeCallbacks)
+            if (value.isBlank()) {
+                ++searchRequest
+                onlineTracks = emptyList()
+                onlineError = null
+                onlineLoading = false
+                renderSearchResults()
+            } else {
+                onlineLoading = true
+                renderSearchResults()
+                val pending = Runnable { performSearch(value) }
+                searchDebounce = pending
+                handler.postDelayed(pending, 420)
+            }
+        }
+        column.addView(input, lp(-1, 52, 0, 0, 0, 16))
+        if (searchText.isNotBlank()) {
+            input.setText(searchText)
+            input.setSelection(input.length())
+        }
+        val filters = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+        }
+        val filterRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        for (genre in listOf("Eletrônica", "Rock", "Hip-Hop", "Lo-fi", "Pop")) {
+            val chip = text(genre, 12f, light).apply {
+                gravity = Gravity.CENTER
+                background = shape(card, 30)
+                setPadding(dp(14), dp(10), dp(14), dp(10))
+                setOnClickListener {
+                    input.setText(genre)
+                    input.setSelection(input.length())
+                }
+            }
+            filterRow.addView(chip, lp(-2, -2, 0, 0, 8))
+        }
+        filters.addView(filterRow)
+        column.addView(filters, lp(-1, 46, 0, 0, 0, 19))
+        searchResults = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        column.addView(searchResults)
+        renderSearchResults()
+        val id = getSharedPreferences("nox_settings", MODE_PRIVATE).getString("jamendo_id", "").orEmpty()
+        if (id.isBlank()) {
+            column.addView(View(this), lp(-1, 22))
+            infoCard(column, "Quer ampliar o catálogo?", "O Jamendo também pode ser ativado gratuitamente com um client_id próprio.", "CONFIGURAR JAMENDO") {
+                openTab(5)
+            }
+        }
+    }
+
+    private fun renderSearchResults() {
+        val target = searchResults ?: return
+        target.removeAllViews()
+        val query = searchText.trim()
+        if (query.isEmpty()) {
+            section(target, "Em alta no Audius", "Atualizar") { loadTrending() }
+            if (onlineLoading && trendingTracks.isEmpty()) {
+                target.addView(text("Carregando faixas...", 13f, secondary))
+            } else if (trendingTracks.isEmpty()) {
+                infoCard(target, "Sem novidades no momento", "A conexão pode estar indisponível.", "TENTAR NOVAMENTE") { loadTrending() }
+            } else addRows(target, trendingTracks, trendingTracks)
+            return
+        }
+        val local = localTracks.filter { it.title.contains(query, true) || it.artist.contains(query, true) }
+        if (local.isNotEmpty()) {
+            section(target, "No seu dispositivo")
+            addRows(target, local, local)
+            target.addView(View(this), lp(-1, 16))
+        }
+        section(target, "Músicas online")
+        if (onlineLoading) {
+            target.addView(text("Pesquisando nos catálogos...", 13f, secondary), lp(-1, -2, 0, 9))
+        } else if (onlineTracks.isEmpty()) {
+            target.addView(text(
+                if (onlineError != null) "Não foi possível consultar o catálogo. Tente novamente."
+                else "Nenhuma faixa encontrada para essa pesquisa.",
+                13f, secondary
+            ), lp(-1, -2, 0, 11))
+        } else addRows(target, onlineTracks, onlineTracks)
+    }
+
+    private fun performSearch(query: String) {
+        val id = ++searchRequest
+        val jamendoId = getSharedPreferences("nox_settings", MODE_PRIVATE).getString("jamendo_id", "").orEmpty()
+        val highQuality = getSharedPreferences("nox_settings", MODE_PRIVATE).getBoolean("hq_audio", true)
+        io.execute {
+            val a = runCatching { audius.search(query) }
+            val j = if (jamendoId.isBlank()) null
+                else runCatching { JamendoRepository(jamendoId, highQuality).search(query) }
+            val tracks = (a.getOrDefault(emptyList()) + (j?.getOrDefault(emptyList()) ?: emptyList()))
+                .distinctBy { it.id }
+            val unavailable = a.isFailure && (j == null || j.isFailure)
+            runOnUiThread {
+                if (isFinishing || isDestroyed || id != searchRequest || searchText != query) return@runOnUiThread
+                onlineLoading = false
+                onlineTracks = tracks
+                onlineError = if (unavailable) (a.exceptionOrNull()?.message ?: "Falha de rede") else null
+                if (tab == 1) renderSearchResults()
+            }
+        }
+    }
+
+    private fun loadTrending() {
+        onlineLoading = true
+        if (tab == 1) renderSearchResults()
+        io.execute {
+            val result = runCatching { audius.trending(36) }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                trendingTracks = result.getOrDefault(emptyList())
+                if (searchText.isEmpty()) onlineLoading = false
+                if (tab == 0) renderPage()
+                if (tab == 1 && searchText.isEmpty()) renderSearchResults()
+            }
+        }
+    }
+
     private fun libraryPage(column: LinearLayout) {
         heading(column, "Offline", "Sua biblioteca", "${localTracks.size} músicas disponíveis no dispositivo")
         if (!hasAudioPermission()) {
