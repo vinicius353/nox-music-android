@@ -692,28 +692,62 @@ class MainActivity : Activity() {
     }
 
     private fun libraryPage(column: LinearLayout) {
-        heading(column, "Offline", "Sua biblioteca", "${localTracks.size} músicas disponíveis no dispositivo")
-        if (!hasAudioPermission()) {
-            infoCard(column, "Acesso às músicas", "O Android precisa autorizar a leitura dos seus arquivos de áudio.", "PERMITIR ACESSO") { requestAudioPermission() }
+        heading(column,"Arquivos offline","Sua biblioteca",
+            "${localTracks.size} faixas disponíveis no dispositivo")
+        if(!hasAudioPermission()) {
+            infoCard(column,"Permitir acesso às músicas",
+                "O Android precisa autorizar o acesso aos arquivos de áudio.",
+                "PERMITIR") { requestAudioPermission() }
             return
         }
-        val rows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val search = searchInput("Buscar em suas músicas...") { query ->
-            val filtered = localTracks.filter { it.title.contains(query, true) || it.artist.contains(query, true) }
+        val prefs=getSharedPreferences("nox_settings",MODE_PRIVATE)
+        var order=prefs.getString("local_sort","Título").orEmpty()
+        var currentQuery=""
+        val rows=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        fun renderFiltered() {
             rows.removeAllViews()
-            if (filtered.isEmpty()) rows.addView(text("Nenhuma música encontrada.", 13f, secondary), lp(-1, -2, 0, 12))
-            else addRows(rows, filtered, filtered)
+            val filtered=localTracks.filter {
+                it.title.contains(currentQuery,true) || it.artist.contains(currentQuery,true) ||
+                it.album.contains(currentQuery,true)
+            }
+            val sorted=when(order) {
+                "Artista" -> filtered.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.artist })
+                "Duração" -> filtered.sortedByDescending { it.durationMs }
+                else -> filtered.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
+            }
+            if(sorted.isEmpty()) {
+                infoCard(rows,"Nenhum áudio encontrado",
+                    if(currentQuery.isNotBlank()) "Tente pesquisar por outro nome."
+                    else "Adicione músicas ao dispositivo e atualize a biblioteca.",
+                    "ATUALIZAR") { loadLocal() }
+            } else addRows(rows,sorted,sorted)
         }
-        column.addView(search, lp(-1, 50, 0, 0, 0, 16))
-        val sub = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        sub.addView(text("TODAS AS FAIXAS", 11f, accent, true), LinearLayout.LayoutParams(0, -2, 1f))
-        sub.addView(text("↻  Atualizar", 12f, secondary).apply {
+        column.addView(searchInput("Pesquisar em suas músicas...") { query ->
+            currentQuery=query
+            renderFiltered()
+        },lp(-1,52,0,0,0,17))
+        val control=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
+        for(label in listOf("Título","Artista","Duração")) {
+            val chip=text(label,11.5f,if(order==label) bgColor else light,order==label).apply {
+                gravity=Gravity.CENTER
+                background=shape(if(order==label) light else card,20)
+                setOnClickListener {
+                    order=label
+                    prefs.edit().putString("local_sort",label).apply()
+                    renderPage()
+                }
+            }
+            control.addView(chip,LinearLayout.LayoutParams(0,dp(36),1f).apply { marginEnd=dp(7) })
+        }
+        column.addView(control,lp(-1,36,0,0,0,18))
+        val label=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
+        label.addView(text("TODAS AS MÚSICAS",10.5f,secondary,true),LinearLayout.LayoutParams(0,-2,1f))
+        label.addView(text("↻  Atualizar",12f,light).apply {
             setOnClickListener { loadLocal() }
         })
-        column.addView(sub, lp(-1, -2, 0, 0, 0, 13))
+        column.addView(label,lp(-1,-2,0,0,0,11))
         column.addView(rows)
-        if (localTracks.isEmpty()) rows.addView(text("Nenhum arquivo de áudio encontrado.", 13f, secondary), lp(-1, -2, 0, 10))
-        else addRows(rows, localTracks, localTracks)
+        renderFiltered()
     }
 
     private fun radioPage(column: LinearLayout) {
