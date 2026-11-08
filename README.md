@@ -2,6 +2,17 @@
 
 **NOX Music** is an original, lightweight Kotlin music player for Android. No ads, no forced account, no WebView. Designed for small-memory phones.
 
+## 0.4.0 Alpha — YouTube Music catalog access
+
+NOX now offers a dedicated **YouTube Music** tab built around the **real official music.youtube.com website**, keeping the original black-and-white UI for Audius, Jamendo, and local files.
+
+- Search for mainstream songs within YouTube Music's real catalog. You can enter a native search query and choose "PESQUISAR NO YOUTUBE MUSIC" to open the site's search results.
+- Use the native NOX toolbar to reload and open the current page in the official YouTube Music app or a regular browser if Android WebView cannot play it.
+- YouTube Music playback is **controlled by Google's website**, not by NOX Media3. The app **does not** extract audio, remove ads, download tracks, bypass paywalls or intercept Google account credentials.
+- **Important:** This is a *web-integrated* catalog, NOT a native official YouTube Music streaming SDK. YouTube Music's site may refuse embedded browsers on some devices. Use the "ABRIR APP" fallback. Playback while the app/tab is in the background is disabled, in accordance with the service's policies.
+- Google login may be blocked inside WebView. Use the official app/browser for Google sign-in; passwords are never entered into NOX-owned forms.
+- Media3's local, Audius and Jamendo features continue unchanged.
+
 ## 0.3.0 Alpha — Premium Refresh
 
 ### Listen
@@ -51,5 +62,6 @@ Sources: [Audius](https://docs.audius.co/api/), [Jamendo](https://developer.jame
 - 0.1.0 Alpha: local music and radio
 - 0.2.0 Alpha: public on-demand streaming, playlists, history, monochrome theme
 - 0.3.0 Alpha: premium refresh, on-disk artwork caching, Jamendo default, improved home and navigation
+- 0.4.0 Alpha: official YouTube Music web catalog entry point with safe external fallback
 
 Copyright and licenses remain with their respective owners.
