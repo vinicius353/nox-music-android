@@ -1,4 +1,7 @@
 <resources>
-    <color name="nox_bg">#08090C</color>
-    <color name="nox_purple">#D6C3FF</color>
+    <color name="nox_bg">#050505</color>
+    <color name="nox_purple">#F5F5F5</color>
+    <color name="nox_white">#F5F5F5</color>
+    <color name="nox_gray">#838383</color>
+    <color name="nox_panel">#161616</color>
 </resources>

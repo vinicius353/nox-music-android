@@ -5,7 +5,8 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import org.json.JSONObject
 
-enum class Source { LOCAL, RADIO }
+/** Each song carries its own provider identity; saved playlists never depend on a search page. */
+enum class Source { LOCAL, AUDIOUS, JAMENDO, RADIO }
 
 data class Track(
     val id: String,
@@ -13,23 +14,35 @@ data class Track(
     val artist: String,
     val uri: String,
     val durationMs: Long = 0L,
-    val source: Source = Source.LOCAL
+    val source: Source = Source.LOCAL,
+    val album: String = "",
+    val artworkUrl: String = "",
+    val artistId: String = "",
+    val albumId: String = ""
 ) {
     val isLive: Boolean get() = source == Source.RADIO
+    val providerName: String get() = when (source) {
+        Source.LOCAL -> "No dispositivo"
+        Source.AUDIOUS -> "Audius"
+        Source.JAMENDO -> "Jamendo"
+        Source.RADIO -> "Rádio ao vivo"
+    }
 
-    fun mediaItem(): MediaItem =
-        MediaItem.Builder()
+    fun mediaItem(): MediaItem {
+        val metadata = MediaMetadata.Builder()
+            .setTitle(title)
+            .setArtist(artist)
+            .setAlbumTitle(album.ifBlank { providerName })
+            .setIsPlayable(true)
+        if (artworkUrl.startsWith("https://") || artworkUrl.startsWith("content://")) {
+            metadata.setArtworkUri(Uri.parse(artworkUrl))
+        }
+        return MediaItem.Builder()
             .setMediaId(id)
             .setUri(Uri.parse(uri))
-            .setMediaMetadata(
-                MediaMetadata.Builder()
-                    .setTitle(title)
-                    .setArtist(artist)
-                    .setAlbumTitle(if (isLive) "Rádio online" else "Biblioteca local")
-                    .setIsPlayable(true)
-                    .build()
-            )
+            .setMediaMetadata(metadata.build())
             .build()
+    }
 
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id)
@@ -38,6 +51,10 @@ data class Track(
         put("uri", uri)
         put("durationMs", durationMs)
         put("source", source.name)
+        put("album", album)
+        put("artworkUrl", artworkUrl)
+        put("artistId", artistId)
+        put("albumId", albumId)
     }
 
     companion object {
@@ -46,8 +63,12 @@ data class Track(
             title = obj.optString("title"),
             artist = obj.optString("artist"),
             uri = obj.optString("uri"),
-            durationMs = obj.optLong("durationMs", 0L),
-            source = runCatching { Source.valueOf(obj.optString("source")) }.getOrDefault(Source.LOCAL)
+            durationMs = obj.optLong("durationMs", 0),
+            source = runCatching { Source.valueOf(obj.optString("source", "LOCAL")) }.getOrDefault(Source.LOCAL),
+            album = obj.optString("album"),
+            artworkUrl = obj.optString("artworkUrl"),
+            artistId = obj.optString("artistId"),
+            albumId = obj.optString("albumId")
         )
     }
 }
