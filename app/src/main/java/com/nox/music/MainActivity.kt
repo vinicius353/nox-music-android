@@ -577,34 +577,55 @@ class MainActivity : Activity() {
         }
     }
 
+    /**
+     * Render a small, bounded page of rows. A large music library must not create
+     * thousands of Android Views at once on a low-memory phone.
+     */
     private fun addRows(target: LinearLayout, shown: List<Track>, queue: List<Track>) {
-        shown.forEachIndexed { index, track ->
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                minimumHeight = dp(67)
-                setOnClickListener { startTrack(queue, index) }
+        val savedIds = favorites.all().mapTo(mutableSetOf()) { it.id }
+
+        fun append(from: Int) {
+            val end = min(from + 45, shown.size)
+            for (index in from until end) {
+                val track = shown[index]
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    minimumHeight = dp(67)
+                    setOnClickListener { startTrack(queue, index) }
+                }
+                row.addView(artwork(track, 50), lp(50, 50, 0, 0, 12))
+                val metadata = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                metadata.addView(text(track.title, 13.5f, light, true).apply { maxLines = 1 })
+                metadata.addView(text(track.artist, 11.5f, secondary).apply { maxLines = 1 },
+                    lp(-1, -2, 0, 5))
+                row.addView(metadata, LinearLayout.LayoutParams(0, -2, 1f))
+                val isSaved = savedIds.contains(track.id)
+                val heart = text(if (isSaved) "♥" else "♡",
+                    22f, if (isSaved) accent else secondary)
+                heart.gravity = Gravity.CENTER
+                heart.contentDescription = "Adicionar ou remover favorito"
+                heart.setOnClickListener {
+                    val added = favorites.toggle(track)
+                    if (added) savedIds.add(track.id) else savedIds.remove(track.id)
+                    heart.text = if (added) "♥" else "♡"
+                    heart.setTextColor(if (added) accent else secondary)
+                    syncPlayback()
+                    if (tab == 3) renderPage()
+                }
+                row.addView(heart, lp(39, 48, 7))
+                target.addView(row, lp(-1, 70))
             }
-            row.addView(artwork(track, 50), lp(50, 50, 0, 0, 12))
-            val metadata = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            metadata.addView(text(track.title, 13.5f, light, true).apply { maxLines = 1 })
-            metadata.addView(text(track.artist, 11.5f, secondary).apply { maxLines = 1 },
-                lp(-1, -2, 0, 5))
-            row.addView(metadata, LinearLayout.LayoutParams(0, -2, 1f))
-            val heart = text(if (favorites.contains(track.id)) "♥" else "♡",
-                22f, if (favorites.contains(track.id)) accent else secondary)
-            heart.gravity = Gravity.CENTER
-            heart.contentDescription = "Adicionar ou remover favorito"
-            heart.setOnClickListener {
-                val added = favorites.toggle(track)
-                heart.text = if (added) "♥" else "♡"
-                heart.setTextColor(if (added) accent else secondary)
-                syncPlayback()
-                if (tab == 3) renderPage()
+            if (end < shown.size) {
+                lateinit var more: TextView
+                more = actionLabel("CARREGAR MAIS  (${shown.size - end})  ↓") {
+                    target.removeView(more)
+                    append(end)
+                }
+                target.addView(more, lp(-1, 50, 0, 8, 0, 15))
             }
-            row.addView(heart, lp(39, 48, 7))
-            target.addView(row, lp(-1, 70))
         }
+        append(0)
     }
 
     private fun hasAudioPermission(): Boolean {
