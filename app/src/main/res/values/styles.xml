@@ -2,10 +2,11 @@
     <style name="Theme.Nox" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:statusBarColor">#08090C</item>
-        <item name="android:navigationBarColor">#08090C</item>
+        <item name="android:statusBarColor">#050505</item>
+        <item name="android:navigationBarColor">#050505</item>
         <item name="android:windowActionModeOverlay">true</item>
-        <item name="android:colorAccent">#D6C3FF</item>
-        <item name="android:windowBackground">#08090C</item>
+        <item name="android:colorAccent">#F5F5F5</item>
+        <item name="android:windowBackground">#050505</item>
+        <item name="android:windowLightNavigationBar">false</item>
     </style>
 </resources>

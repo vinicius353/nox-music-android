@@ -1,35 +1,48 @@
 # NOX Music
 
-**NOX Music** is a lightweight, native Android music player written from scratch in Kotlin.
+A lightweight **original native Android music player** written in Kotlin, with a monochrome interface.
 
-### 0.1.0 Alpha
+## 0.2.0 Alpha (On Demand)
 
-- Play local audio files using Android MediaStore.
-- Browse and play free live internet radio stations using the open Radio Browser directory.
-- Unified queue, media controls, lock-screen and Bluetooth playback with Media3.
-- Favorites saved on-device, dark UI, animated navigation and custom adaptive icon.
-- No account, ads, telemetry or subscription required.
+- **Audius**: search, trending tracks and on-demand playback of publicly streamable music, without login.
+- **Jamendo**: optional additional on-demand catalogue using your own free `client_id` (Settings). The demo client ID from Jamendo's docs is intentionally not embedded.
+- **Local library**: play MP3/FLAC/M4A and other Android-supported audio without internet.
+- **Library**: favorites, listening history, named playlists and persistent queue, with a SQLite database stored entirely on device.
+- **Playback**: Media3 ExoPlayer, background playback, Bluetooth and lock-screen controls; queue editing, shuffle, repeat and seeking.
+- **Discovery**: album and artist views when metadata is available, provider labels, artwork and simple genre search.
+- **Radio**: retained as an optional secondary feature using Radio Browser.
+- **Design**: new monochrome adaptive launcher icon, dark typography, subtle motion and bounded list rendering.
+- No ads, account requirement or telemetry.
 
-**Important:** Live radio is not an on-demand Spotify/YouTube music catalog. A station chooses what it plays. Some third-party stations may be offline or use incompatible streaming formats.
+The Spotify or YouTube Music commercial catalogue is **not included**. Third-party providers may be unavailable or may restrict tracks. Public Audius/Jamendo results are not guaranteed to include any particular artist.
 
-### Build
+## Android requirements
 
-Open in Android Studio (Android SDK 36), or use Gradle 8.13 with JDK 17:
+Android 8.0 (API 26) or later. Target API 36. Tested by CI compilation, not yet field-tested on every phone.
+
+## Build
+
+JDK 17, Gradle 8.13, Android SDK 36:
 
 ```bash
-gradle :app:assembleDebug
+gradle :app:testDebugUnitTest :app:assembleDebug
 ```
 
-The GitHub Actions workflow builds and uploads a **debug-signed APK** at **Actions → Android APK → latest successful run → Artifacts**. Debug signatures generated on different runners may differ; keeping app data across builds requires a persistent signing key stored securely.
+The GitHub Actions workflow produces the **NOX-Music-0.2.0-alpha-debug** build artifact for the `feature/nox-0.2.0` branch. Download the ZIP from Actions → successful run → Artifacts. Debug APKs built on different machines may have different signing keys. If Android rejects an update with a signature error, uninstall the earlier debug build, or configure a persistent signing key for future builds. Back up any personal app data first.
 
-### Permissions
+## Sources and privacy
 
-Android audio library access is requested at runtime. Internet is used only for fetching radio directory results and playing stations. Cleartext traffic is enabled because some radio stations still publish HTTP streams.
+- **Audius API**: https://docs.audius.co/api/
+- **Jamendo API**: https://developer.jamendo.com/v3.0/tracks
+- **Radio Browser**: https://www.radio-browser.info/
+- Music lists and favorites are local to the device. No personal data is sent to NOX servers.
+- The app does not scrape Spotify, bypass DRM or use leaked credentials.
 
-### License
+## Known limitations
 
-Source code is original to this repository. See LICENSE when added.
-
-### Roadmap
-
-Improve art thumbnails, playlists, streaming reliability, search, personalization and performance profiling on low-RAM phones.
+- Audius and Jamendo streaming depends on each API's network availability and rights.
+- Jamendo's developer client ID must be supplied before its provider becomes active.
+- Large lists are loaded in pages, but still use native Android Views (RecyclerView planned).
+- Some artist/album metadata may be missing from third-party providers.
+- Changes to the currently playing queue are saved locally; playback does not automatically resume after an app restart.
+- Commercial licensing conditions still apply if this project is redistributed for other uses.
