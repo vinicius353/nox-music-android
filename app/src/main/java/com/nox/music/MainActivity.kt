@@ -79,6 +79,7 @@ class MainActivity : Activity() {
     private var detailLoading = false
     private var priorTab = 0
     private var lastHistoryId = ""
+    private var miniArtworkId = ""
     private lateinit var root: FrameLayout
     private lateinit var content: FrameLayout
     private lateinit var nav: LinearLayout
@@ -117,6 +118,11 @@ class MainActivity : Activity() {
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) = syncPlayback()
+        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+            Toast.makeText(this@MainActivity,
+                "Falha ao reproduzir. Verifique a conexão ou tente outra faixa.",
+                Toast.LENGTH_LONG).show()
+        }
     }
     private val ticker = object : Runnable {
         override fun run() {
@@ -722,7 +728,7 @@ class MainActivity : Activity() {
                     val id = libraryDb.createPlaylist(name)
                     addTrack?.let { libraryDb.addToPlaylist(id, it) }
                     Toast.makeText(this, "Playlist criada.", Toast.LENGTH_SHORT).show()
-                    if (tab == 7) renderPage()
+                    if (tab == 3) renderPage()
                     if (tab == 6) {
                         selectedPlaylistId = id
                         renderPage()
@@ -1200,7 +1206,18 @@ class MainActivity : Activity() {
         future.addListener({
             try {
                 if (isFinishing || isDestroyed) return@addListener
-                player = future.get().apply { addListener(listener) }
+                val connected = future.get()
+                player = connected
+                connected.addListener(listener)
+                if (connected.mediaItemCount == 0) {
+                    val (saved, index) = libraryDb.restoreQueue()
+                    if (saved.isNotEmpty()) {
+                        activeQueue = saved
+                        connected.setMediaItems(saved.map(Track::mediaItem),index,C.TIME_UNSET)
+                        connected.prepare()
+                        // Never autoplay after reopening the app.
+                    }
+                }
                 syncPlayback()
             } catch (_: Exception) {
                 Toast.makeText(this, "Não foi possível iniciar o player.", Toast.LENGTH_LONG).show()
@@ -1215,10 +1232,14 @@ class MainActivity : Activity() {
             return
         }
         if (queue.isEmpty() || index !in queue.indices) return
-        activeQueue = queue.toList()
-        playback.setMediaItems(activeQueue.map(Track::mediaItem), index, C.TIME_UNSET)
+        // Cap Media3's in-memory queue to 200 items while retaining the selected song.
+        val start = (index - 60).coerceAtLeast(0)
+        val end = (start + 200).coerceAtMost(queue.size)
+        activeQueue = queue.subList(start,end).toList()
+        playback.setMediaItems(activeQueue.map(Track::mediaItem), index-start, C.TIME_UNSET)
         playback.prepare()
         playback.play()
+        persistQueue()
         syncPlayback()
     }
 
@@ -1247,11 +1268,21 @@ class MainActivity : Activity() {
         val track = currentTrack()
         mini.visibility = if (track == null) View.GONE else View.VISIBLE
         if (track == null || playback == null) return
+        if (playback.isPlaying && lastHistoryId != track.id) {
+            lastHistoryId = track.id
+            io.execute { libraryDb.recordPlayed(track) }
+        }
         miniTitle.text = track.title
-        miniArtist.text = track.artist
+        miniArtist.text = track.artist + " · " + track.providerName
         miniPlay.setImageResource(if (playback.isPlaying) R.drawable.ic_pause else R.drawable.ic_play)
+        if (miniArtworkId != track.id) {
+            miniArtworkId = track.id
+            miniArt?.let { mini.removeView(it) }
+            miniArt = artwork(track,46,11)
+            mini.addView(miniArt,0,lp(46,46,0,0,11))
+        }
         playerTitle?.text = track.title
-        playerArtist?.text = track.artist
+        playerArtist?.text = track.artist + "  ·  " + track.providerName
         playerPlay?.setImageResource(if (playback.isPlaying) R.drawable.ic_pause else R.drawable.ic_play)
         playerFavorite?.apply {
             val saved = favorites.contains(track.id)
@@ -1261,16 +1292,17 @@ class MainActivity : Activity() {
         playerShuffle?.setTextColor(if (playback.shuffleModeEnabled) accent else secondary)
         playerRepeat?.setTextColor(if (playback.repeatMode != Player.REPEAT_MODE_OFF) accent else secondary)
         val duration = playback.duration
-        val isSeekable = !track.isLive && duration > 0 && duration != C.TIME_UNSET
+        val seekable = !track.isLive && duration > 0 && duration != C.TIME_UNSET
         playerProgress?.apply {
-            isEnabled = isSeekable
+            isEnabled = seekable
             if (!seeking) {
-                max = if (isSeekable) min(duration, Int.MAX_VALUE.toLong()).toInt() else 1000
-                progress = if (isSeekable) playback.currentPosition.coerceIn(0, duration).coerceAtMost(Int.MAX_VALUE.toLong()).toInt() else 0
+                max = if (seekable) min(duration,Int.MAX_VALUE.toLong()).toInt() else 1000
+                progress = if (seekable) playback.currentPosition.coerceIn(0,duration)
+                    .coerceAtMost(Int.MAX_VALUE.toLong()).toInt() else 0
             }
         }
-        playerElapsed?.text = if (isSeekable) formatTime(playback.currentPosition) else "AO VIVO"
-        playerTotal?.text = if (isSeekable) formatTime(duration) else "∞"
+        playerElapsed?.text = if (seekable) formatTime(playback.currentPosition) else "AO VIVO"
+        playerTotal?.text = if (seekable) formatTime(duration) else "∞"
     }
 
     private fun formatTime(ms: Long): String {
@@ -1408,7 +1440,31 @@ class MainActivity : Activity() {
             }
         }
         controls.addView(playerRepeat, LinearLayout.LayoutParams(0, dp(55), 1f))
-        column.addView(controls, lp(-1, 73, 0, 0, 0, 24))
+        column.addView(controls, lp(-1, 73, 0, 0, 0, 20))
+        val actions = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        actions.addView(actionLabel("☷  FILA") {
+            closePlayer(immediate = true)
+            openTab(8)
+        }, LinearLayout.LayoutParams(0,dp(46),1f))
+        actions.addView(actionLabel("+  PLAYLIST") {
+            currentTrack()?.let { addToPlaylistDialog(it) }
+        }, LinearLayout.LayoutParams(0,dp(46),1f).apply { marginStart = dp(10) })
+        column.addView(actions,lp(-1,46,0,0,0,18))
+        val info = currentTrack()
+        if (info != null && !info.isLive) {
+            val detailBar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+            detailBar.addView(actionLabel("VER ARTISTA") {
+                closePlayer(immediate = true)
+                openDetail(info,false)
+            },LinearLayout.LayoutParams(0,dp(42),1f))
+            if (info.album.isNotBlank()) {
+                detailBar.addView(actionLabel("VER ÁLBUM") {
+                    closePlayer(immediate = true)
+                    openDetail(info,true)
+                },LinearLayout.LayoutParams(0,dp(42),1f).apply { marginStart = dp(10) })
+            }
+            column.addView(detailBar,lp(-1,42,0,0,0,15))
+        }
         column.addView(text("NOX MUSIC  •  0.2.0 ALPHA", 10f, secondary, true).apply {
             gravity = Gravity.CENTER
             letterSpacing = 0.08f
