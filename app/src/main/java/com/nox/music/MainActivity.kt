@@ -438,7 +438,7 @@ class MainActivity : Activity() {
         )
         for ((name, tag, brazil) in filters) {
             val selected = radioTag == tag && radioBrazil == brazil
-            val chip = text(name, 12f, if (selected) background else secondary, selected).apply {
+            val chip = text(name, 12f, if (selected) bgColor else secondary, selected).apply {
                 gravity = Gravity.CENTER
                 setPadding(dp(16), dp(10), dp(16), dp(10))
                 this.background = shape(if (selected) accent else card, 50)
