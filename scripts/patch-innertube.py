@@ -61,7 +61,8 @@ substitute(context,
     val request: Request = Request(),
     val user: User = User(),''')
 substitute(context,
-    '    @Serializable\\n    data class ThirdParty(',
+    '''    @Serializable
+    data class ThirdParty(''',
     '''    @Serializable
     data class Request(
         val internalExperimentFlags: List<String> = emptyList(),
