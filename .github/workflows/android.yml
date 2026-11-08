@@ -38,6 +38,11 @@ jobs:
           NOX_KEY_ALIAS: ${{ secrets.NOX_KEY_ALIAS }}
           NOX_KEY_PASSWORD: ${{ secrets.NOX_KEY_PASSWORD }}
         run: gradle :app:testDebugUnitTest :app:assembleDebug --stacktrace
+      - name: Check live InnerTune endpoints (best effort; may be blocked by CI network)
+        continue-on-error: true
+        env:
+          NOX_YOUTUBE_SMOKE: "1"
+        run: gradle :innertube:test --tests 'com.nox.music.tests.InnerTubeLiveSmokeTest' --info
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:

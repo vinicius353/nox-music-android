@@ -1,0 +1,5 @@
+# Sources from the pinned, licensed upstream InnerTune revision are fetched by
+# scripts/fetch-innertube.sh before local/CI builds, not committed as duplicates.
+src/main/java/
+LICENSE
+UPSTREAM_REVISION
