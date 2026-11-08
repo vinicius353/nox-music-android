@@ -36,9 +36,11 @@ class AudiusRepository {
             val id = obj.optString("id")
             if (id.isBlank()) continue
             if (obj.optBoolean("is_stream_gated", false)) continue
+            if (!obj.optBoolean("is_streamable", true)) continue
             if (obj.optBoolean("is_delete", false)) continue
             val user = obj.optJSONObject("user")
             val artistName = user?.optString("name").orEmpty().ifBlank { "Artista Audius" }
+            val backlink = obj.optJSONObject("album_backlink")
             val artwork = obj.optJSONObject("artwork")
             val image = listOf("480x480", "1000x1000", "150x150").firstNotNullOfOrNull { key ->
                 artwork?.optString(key)?.takeIf { it.startsWith("https://") }
@@ -50,10 +52,10 @@ class AudiusRepository {
                 uri = "$base/tracks/$id/stream",
                 durationMs = obj.optLong("duration", 0).coerceAtLeast(0) * 1000L,
                 source = Source.AUDIOUS,
-                album = obj.optString("album").ifBlank { obj.optString("playlist_name") },
+                album = backlink?.optString("playlist_name").orEmpty(),
                 artworkUrl = image,
                 artistId = user?.optString("id").orEmpty(),
-                albumId = obj.optString("playlist_id")
+                albumId = backlink?.optString("playlist_id").orEmpty()
             )
         }
         return tracks.distinctBy { it.id }
