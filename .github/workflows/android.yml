@@ -1,7 +1,7 @@
 name: Android APK
 on:
   push:
-    branches: [main, 'feature/nox-0.2.0', 'feature/nox-0.3.0-premium', 'feature/nox-0.4.0-ytmusic']
+    branches: [main, 'feature/nox-0.2.0', 'feature/nox-0.3.0-premium', 'feature/nox-0.4.0-ytmusic', 'feature/nox-0.5.0-innertune']
   workflow_dispatch:
 
 jobs:
@@ -22,6 +22,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
+      - name: Fetch pinned GPL InnerTune innertube source
+        run: bash scripts/fetch-innertube.sh
       - name: Configure persistent test signing (optional)
         env:
           NOX_KEYSTORE_BASE64: ${{ secrets.NOX_KEYSTORE_BASE64 }}
@@ -39,7 +41,7 @@ jobs:
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: NOX-Music-0.4.0-alpha-debug
+          name: NOX-Music-0.5.0-alpha-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30

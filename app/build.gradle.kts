@@ -28,8 +28,8 @@ android {
         applicationId = "com.nox.music"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.4.0-alpha"
+        versionCode = 5
+        versionName = "0.5.0-alpha"
     }
     buildTypes {
         getByName("debug") {
@@ -47,6 +47,9 @@ android {
     }
 }
 dependencies {
+    implementation(project(":innertube"))
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    implementation("androidx.media3:media3-datasource-okhttp:1.11.1")
     implementation("androidx.media3:media3-exoplayer:1.11.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.11.1")
     implementation("androidx.media3:media3-session:1.11.1")

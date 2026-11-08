@@ -14,3 +14,6 @@ dependencyResolutionManagement {
 }
 rootProject.name = "NOXMusic"
 include(":app")
+
+include(":innertube")
+project(":innertube").projectDir = file("third_party/innertube")
