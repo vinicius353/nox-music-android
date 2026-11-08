@@ -563,7 +563,7 @@ class MainActivity : Activity() {
         searchResults = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         column.addView(searchResults)
         renderSearchResults()
-        val id = getSharedPreferences("nox_settings", MODE_PRIVATE).getString("jamendo_id", "").orEmpty()
+        val id = jamendoClientId()
         if (id.isBlank()) {
             column.addView(View(this), lp(-1, 22))
             infoCard(column, "Quer ampliar o catálogo?", "O Jamendo também pode ser ativado gratuitamente com um client_id próprio.", "CONFIGURAR JAMENDO") {
@@ -576,65 +576,104 @@ class MainActivity : Activity() {
         val target = searchResults ?: return
         target.removeAllViews()
         val query = searchText.trim()
-        if (query.isEmpty()) {
-            section(target, "Em alta no Audius", "Atualizar") { loadTrending() }
-            if (onlineLoading && trendingTracks.isEmpty()) {
-                target.addView(text("Carregando faixas...", 13f, secondary))
-            } else if (trendingTracks.isEmpty()) {
-                infoCard(target, "Sem novidades no momento", "A conexão pode estar indisponível.", "TENTAR NOVAMENTE") { loadTrending() }
-            } else addRows(target, trendingTracks, trendingTracks)
+        if(query.isEmpty()) {
+            section(target,"Músicas para descobrir","Atualizar") {
+                loadTrending()
+                loadJamendoPopular()
+            }
+            val combined=(jamendoPopularTracks.take(12)+trendingTracks.take(12)).distinctBy { it.id }
+            if(combined.isNotEmpty()) addRows(target,combined,combined)
+            else if(onlineLoading || jamendoLoading) sectionSkeleton(target,4)
+            else infoCard(target,"Nenhuma faixa no momento",
+                "As fontes online podem estar temporariamente indisponíveis.","TENTAR NOVAMENTE") {
+                loadTrending()
+                loadJamendoPopular()
+            }
             return
         }
-        val local = localTracks.filter { it.title.contains(query, true) || it.artist.contains(query, true) }
-        if (local.isNotEmpty()) {
-            section(target, "No seu dispositivo")
-            addRows(target, local, local)
-            target.addView(View(this), lp(-1, 16))
+        val local=localTracks.filter {
+            it.title.contains(query,true) || it.artist.contains(query,true) || it.album.contains(query,true)
         }
-        section(target, "Músicas online")
-        if (onlineLoading) {
-            target.addView(text("Pesquisando nos catálogos...", 13f, secondary), lp(-1, -2, 0, 9))
-        } else if (onlineTracks.isEmpty()) {
-            target.addView(text(
-                if (onlineError != null) "Não foi possível consultar o catálogo. Tente novamente."
-                else "Nenhuma faixa encontrada para essa pesquisa.",
-                13f, secondary
-            ), lp(-1, -2, 0, 11))
-        } else addRows(target, onlineTracks, onlineTracks)
-    }
-
-    private fun performSearch(query: String) {
-        val id = ++searchRequest
-        val jamendoId = getSharedPreferences("nox_settings", MODE_PRIVATE).getString("jamendo_id", "").orEmpty()
-        val highQuality = getSharedPreferences("nox_settings", MODE_PRIVATE).getBoolean("hq_audio", true)
-        io.execute {
-            val a = runCatching { audius.search(query) }
-            val j = if (jamendoId.isBlank()) null
-                else runCatching { JamendoRepository(jamendoId, highQuality).search(query) }
-            val tracks = (a.getOrDefault(emptyList()) + (j?.getOrDefault(emptyList()) ?: emptyList()))
-                .distinctBy { it.id }
-            val unavailable = a.isFailure && (j == null || j.isFailure)
-            runOnUiThread {
-                if (isFinishing || isDestroyed || id != searchRequest || searchText != query) return@runOnUiThread
-                onlineLoading = false
-                onlineTracks = tracks
-                onlineError = if (unavailable) (a.exceptionOrNull()?.message ?: "Falha de rede") else null
-                if (tab == 1) renderSearchResults()
+        if(local.isNotEmpty()) {
+            section(target,"No dispositivo")
+            addRows(target,local,local)
+            target.addView(View(this),lp(-1,18))
+        }
+        section(target,"Resultados online")
+        if(onlineTracks.isNotEmpty()) addRows(target,onlineTracks,onlineTracks)
+        if(onlineLoading) sectionSkeleton(target,if(onlineTracks.isEmpty()) 4 else 2)
+        if(!onlineLoading && onlineTracks.isEmpty()) {
+            infoCard(target,if(onlineError!=null) "Não foi possível pesquisar" else "Nenhuma música encontrada",
+                if(onlineError!=null) "Falha de conexão com os provedores. Tente novamente."
+                else "Experimente outro nome ou artista.","PESQUISAR NOVAMENTE") {
+                performSearch(query)
             }
         }
     }
 
-    private fun loadTrending() {
-        onlineLoading = true
-        if (tab == 1) renderSearchResults()
-        io.execute {
-            val result = runCatching { audius.trending(36) }
+    private fun performSearch(query: String) {
+        val request=++searchRequest
+        val clientId=jamendoClientId()
+        val highQuality=getSharedPreferences("nox_settings",MODE_PRIVATE).getBoolean("hq_audio",true)
+        searchPendingSources=if(clientId.isNotBlank()) 2 else 1
+        onlineLoading=true
+        onlineTracks=emptyList()
+        onlineError=null
+        if(tab==1) renderSearchResults()
+        fun handle(result: Result<List<Track>>) {
             runOnUiThread {
-                if (isFinishing || isDestroyed) return@runOnUiThread
-                trendingTracks = result.getOrDefault(emptyList())
-                if (searchText.isEmpty()) onlineLoading = false
-                if (tab == 0) renderPage()
-                if (tab == 1 && searchText.isEmpty()) renderSearchResults()
+                if(isDestroyed || isFinishing || request!=searchRequest || searchText!=query) return@runOnUiThread
+                result.onSuccess { found ->
+                    onlineTracks=(onlineTracks+found).distinctBy { it.id }
+                }.onFailure {
+                    onlineError=it.localizedMessage ?: "Fonte indisponível"
+                }
+                searchPendingSources=(searchPendingSources-1).coerceAtLeast(0)
+                onlineLoading=searchPendingSources>0
+                if(tab==1) renderSearchResults()
+            }
+        }
+        io.execute { handle(runCatching { audius.search(query) }) }
+        if(clientId.isNotBlank()) {
+            io.execute { handle(runCatching { JamendoRepository(clientId,highQuality).search(query) }) }
+        }
+    }
+
+    private fun loadTrending() {
+        onlineLoading=true
+        if(tab==1 && searchText.isEmpty()) renderSearchResults()
+        io.execute {
+            val result=runCatching { audius.trending(24) }
+            runOnUiThread {
+                if(isDestroyed || isFinishing) return@runOnUiThread
+                trendingTracks=result.getOrDefault(emptyList())
+                if(searchText.isEmpty()) onlineLoading=false
+                if(tab==0) renderPage()
+                if(tab==1 && searchText.isEmpty()) renderSearchResults()
+            }
+        }
+    }
+
+    private fun loadJamendoPopular() {
+        val id=jamendoClientId()
+        if(id.isBlank()) {
+            jamendoPopularTracks=emptyList()
+            jamendoLoading=false
+            if(tab==0) renderPage()
+            return
+        }
+        jamendoLoading=true
+        jamendoError=null
+        io.execute {
+            val quality=getSharedPreferences("nox_settings",MODE_PRIVATE).getBoolean("hq_audio",true)
+            val result=runCatching { JamendoRepository(id,quality).popular(18) }
+            runOnUiThread {
+                if(isDestroyed || isFinishing) return@runOnUiThread
+                jamendoPopularTracks=result.getOrDefault(emptyList())
+                jamendoLoading=false
+                jamendoError=result.exceptionOrNull()?.localizedMessage
+                if(tab==0) renderPage()
+                if(tab==1 && searchText.isEmpty()) renderSearchResults()
             }
         }
     }
@@ -981,7 +1020,7 @@ class MainActivity : Activity() {
                     } else audius.artistTracks(owner.artistId)
                     Source.JAMENDO -> {
                         val prefs = getSharedPreferences("nox_settings", MODE_PRIVATE)
-                        val clientId = prefs.getString("jamendo_id", "").orEmpty()
+                        val clientId = jamendoClientId()
                         if (clientId.isEmpty()) emptyList()
                         else if (album) JamendoRepository(clientId).albumTracks(owner.albumId)
                         else JamendoRepository(clientId).artistTracks(owner.artistId)
