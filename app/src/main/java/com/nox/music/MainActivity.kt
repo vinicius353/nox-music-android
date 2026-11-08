@@ -59,6 +59,7 @@ class MainActivity : Activity() {
     private val accent = Color.rgb(255, 255, 255)
     private val handler = Handler(Looper.getMainLooper())
     private val io = Executors.newFixedThreadPool(2)
+    private val stateIo = Executors.newSingleThreadExecutor()
 
     private lateinit var favorites: FavoritesStore
     private lateinit var libraryDb: MusicDatabase
@@ -164,7 +165,8 @@ class MainActivity : Activity() {
         controllerFuture?.let { MediaController.releaseFuture(it) }
         io.shutdownNow()
         covers.shutdown()
-        libraryDb.close()
+        stateIo.execute { libraryDb.close() }
+        stateIo.shutdown()
         super.onDestroy()
     }
 
@@ -881,7 +883,7 @@ class MainActivity : Activity() {
     private fun persistQueue() {
         val items = activeQueue.toList()
         val index = player?.currentMediaItemIndex ?: 0
-        io.execute { libraryDb.saveQueue(items,index) }
+        stateIo.execute { libraryDb.saveQueue(items,index) }
     }
 
     private fun openDetail(track: Track, album: Boolean) {
@@ -1268,7 +1270,7 @@ class MainActivity : Activity() {
         if (track == null || playback == null) return
         if (playback.isPlaying && lastHistoryId != track.id) {
             lastHistoryId = track.id
-            io.execute { libraryDb.recordPlayed(track) }
+            stateIo.execute { libraryDb.recordPlayed(track) }
         }
         miniTitle.text = track.title
         miniArtist.text = track.artist + " · " + track.providerName
