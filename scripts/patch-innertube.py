@@ -52,4 +52,29 @@ substitute(api,
     'append("x-origin", "https://music.youtube.com")',
     'append("x-origin", "https://music.youtube.com")\n            append("Origin", "https://music.youtube.com")')
 
+# Updated InnerTube requests include request/user context blocks. InnerTune 2025
+# predates these required fields; without them even unfiltered search may be 400.
+context = root / "com/zionhuang/innertube/models/Context.kt"
+substitute(context,
+    '    val thirdParty: ThirdParty? = null,',
+    '''    val thirdParty: ThirdParty? = null,
+    val request: Request = Request(),
+    val user: User = User(),''')
+substitute(context,
+    '    @Serializable\\n    data class ThirdParty(',
+    '''    @Serializable
+    data class Request(
+        val internalExperimentFlags: List<String> = emptyList(),
+        val useSsl: Boolean = true,
+    )
+
+    @Serializable
+    data class User(
+        val lockedSafetyMode: Boolean = false,
+        val onBehalfOfUser: String? = null,
+    )
+
+    @Serializable
+    data class ThirdParty(''')
+
 print("Applied NOX InnerTune modern-client compatibility edits (GPL-3.0)")
