@@ -45,7 +45,7 @@ import java.util.concurrent.Executor
 import kotlin.math.min
 
 class MainActivity : Activity() {
-    private val background = Color.rgb(8, 9, 12)
+    private val bgColor = Color.rgb(8, 9, 12)
     private val card = Color.rgb(23, 25, 31)
     private val surface = Color.rgb(32, 34, 42)
     private val light = Color.rgb(246, 244, 250)
@@ -104,9 +104,9 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         favorites = FavoritesStore(this)
         @Suppress("DEPRECATION")
-        window.statusBarColor = background
+        window.statusBarColor = bgColor
         @Suppress("DEPRECATION")
-        window.navigationBarColor = background
+        window.navigationBarColor = bgColor
         @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility = 0
         buildShell()
@@ -188,7 +188,7 @@ class MainActivity : Activity() {
         }
 
     private fun buildShell() {
-        root = FrameLayout(this).apply { setBackgroundColor(background) }
+        root = FrameLayout(this).apply { setBackgroundColor(bgColor) }
         if (Build.VERSION.SDK_INT >= 35) {
             root.setOnApplyWindowInsetsListener { view, insets ->
                 val bars = insets.getInsets(WindowInsets.Type.systemBars())
@@ -207,7 +207,7 @@ class MainActivity : Activity() {
             text = "N"
             textSize = 20f
             typeface = Typeface.DEFAULT_BOLD
-            setTextColor(background)
+            setTextColor(bgColor)
             gravity = Gravity.CENTER
             background = shape(accent, 13)
         }
@@ -279,7 +279,7 @@ class MainActivity : Activity() {
             val cell = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                background = if (selected) shape(card, 14) else shape(background, 14)
+                background = if (selected) shape(card, 14) else shape(bgColor, 14)
                 contentDescription = label
                 setOnClickListener { openTab(index) }
             }
@@ -306,7 +306,7 @@ class MainActivity : Activity() {
         content.removeAllViews()
         radioContainer = null
         val scroll = ScrollView(this).apply {
-            fillViewport = false
+            isFillViewport = false
             clipToPadding = false
             isVerticalScrollBarEnabled = false
             overScrollMode = View.OVER_SCROLL_NEVER
@@ -315,7 +315,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(22), dp(12), dp(22), dp(27))
         }
-        scroll.addView(column, ScrollView.LayoutParams(-1, -2))
+        scroll.addView(column, FrameLayout.LayoutParams(-1, -2))
         content.addView(scroll, FrameLayout.LayoutParams(-1, -1))
         when (tab) {
             0 -> home(column)
@@ -761,12 +761,12 @@ class MainActivity : Activity() {
 
     private fun showPlayer() {
         if (overlay != null || currentTrack() == null) return
-        val sheet = FrameLayout(this).apply { setBackgroundColor(background) }
+        val sheet = FrameLayout(this).apply { setBackgroundColor(bgColor) }
         overlay = sheet
         root.addView(sheet, FrameLayout.LayoutParams(-1, -1))
         val scroll = ScrollView(this).apply {
             isVerticalScrollBarEnabled = false
-            fillViewport = true
+            isFillViewport = true
         }
         sheet.addView(scroll, FrameLayout.LayoutParams(-1, -1))
         val column = LinearLayout(this).apply {
@@ -774,7 +774,7 @@ class MainActivity : Activity() {
             setPadding(dp(25), dp(18), dp(25), dp(30))
             gravity = Gravity.CENTER_HORIZONTAL
         }
-        scroll.addView(column, ScrollView.LayoutParams(-1, -1))
+        scroll.addView(column, FrameLayout.LayoutParams(-1, -1))
         val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         val down = icon(R.drawable.ic_down, 25, light).apply {
             contentDescription = "Fechar player"
@@ -861,7 +861,7 @@ class MainActivity : Activity() {
             background = shape(accent, 100)
             setOnClickListener { togglePlayback() }
         }
-        playerPlay = icon(R.drawable.ic_play, 31, background)
+        playerPlay = icon(R.drawable.ic_play, 31, bgColor)
         playBox.addView(playerPlay, FrameLayout.LayoutParams(dp(31), dp(31), Gravity.CENTER))
         controls.addView(playBox, lp(68, 68, 5, 0, 5))
 
