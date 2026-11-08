@@ -1,7 +1,8 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <!-- White waveform and geometric N, purposely legible at 48dp. -->
+    <!-- White waveform and geometric N, centered in the Android adaptive icon safe area. -->
+    <group android:translateX="-5">
     <path android:fillColor="#FFFFFF"
         android:pathData="M24,48 C24,46 25.6,44.4 27.6,44.4 C29.6,44.4 31.2,46 31.2,48 L31.2,60 C31.2,62 29.6,63.6 27.6,63.6 C25.6,63.6 24,62 24,60 Z"/>
     <path android:fillColor="#FFFFFF"
@@ -12,4 +13,5 @@
         android:pathData="M77.5,41 C77.5,39 79.1,37.4 81.1,37.4 C83.1,37.4 84.7,39 84.7,41 L84.7,67 C84.7,69 83.1,70.6 81.1,70.6 C79.1,70.6 77.5,69 77.5,67 Z"/>
     <path android:fillColor="#FFFFFF"
         android:pathData="M88,48 C88,46 89.6,44.4 91.6,44.4 C93.6,44.4 95.2,46 95.2,48 L95.2,60 C95.2,62 93.6,63.6 91.6,63.6 C89.6,63.6 88,62 88,60 Z"/>
+    </group>
 </vector>
