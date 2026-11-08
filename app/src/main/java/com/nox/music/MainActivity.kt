@@ -1569,7 +1569,7 @@ class MainActivity : Activity() {
         if (!::mini.isInitialized) return
         val playback = player
         val track = currentTrack()
-        miniContainer?.visibility = if (track == null) View.GONE else View.VISIBLE
+        miniContainer?.visibility = if (track == null || tab == 10) View.GONE else View.VISIBLE
         if (track == null || playback == null) {
             miniProgress?.visibility = View.INVISIBLE
             return

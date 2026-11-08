@@ -13,6 +13,7 @@ import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -148,6 +149,19 @@ class YouTubeMusicPanel(private val activity: Activity) {
                     return true
                 }
 
+                override fun onRenderProcessGone(
+                    view: WebView?, detail: RenderProcessGoneDetail?
+                ): Boolean {
+                    // Low-memory Android may reclaim the WebView renderer. Keep NOX alive.
+                    if (!isClosed && view != null) {
+                        (view.parent as? ViewGroup)?.removeView(view)
+                        view.destroy()
+                        browser = null
+                        showError("O navegador foi encerrado pelo Android. Tente novamente ou abra o app oficial.")
+                    }
+                    return true
+                }
+
                 override fun onReceivedError(
                     view: WebView?, request: WebResourceRequest?, error: WebResourceError?
                 ) {
@@ -184,7 +198,10 @@ class YouTubeMusicPanel(private val activity: Activity) {
             }, LinearLayout.LayoutParams(-1, dp(70)))
             addView(barButton("TENTAR NOVAMENTE") {
                 errorOverlay?.visibility = View.GONE
-                browser?.loadUrl(currentTarget)
+                if (browser == null) {
+                    // Renderer crashes are recovered by opening the reliable external service.
+                    openInOfficialApp()
+                } else browser?.loadUrl(currentTarget)
             }, LinearLayout.LayoutParams(-1, dp(48)))
             addView(barButton("ABRIR YOUTUBE MUSIC") { openInOfficialApp() },
                 LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(12) })
