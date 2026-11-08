@@ -42,7 +42,7 @@ class AudiusRepository {
             val artistName = user?.optString("name").orEmpty().ifBlank { "Artista Audius" }
             val backlink = obj.optJSONObject("album_backlink")
             val artwork = obj.optJSONObject("artwork")
-            val image = listOf("480x480", "1000x1000", "150x150").firstNotNullOfOrNull { key ->
+            val image = listOf("_480x480", "480x480", "_150x150", "150x150", "_1000x1000", "1000x1000").firstNotNullOfOrNull { key ->
                 artwork?.optString(key)?.takeIf { it.startsWith("https://") }
             }.orEmpty()
             tracks += Track(

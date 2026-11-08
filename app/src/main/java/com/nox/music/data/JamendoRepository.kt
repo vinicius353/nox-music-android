@@ -9,6 +9,11 @@ import org.json.JSONObject
  * Do not ship Jamendo's documentation-only testing key in production.
  */
 class JamendoRepository(private val clientId: String, private val highQuality: Boolean = true) {
+    companion object {
+        /** Public app ID supplied by the app owner; can be overridden in settings. */
+        const val DEFAULT_ID = "787f02f8"
+    }
+
     private val base = "https://api.jamendo.com/v3.0/tracks/"
 
     fun search(query: String, limit: Int = 30): List<Track> =
@@ -30,7 +35,7 @@ class JamendoRepository(private val clientId: String, private val highQuality: B
             "format" to "json",
             "audioformat" to if (highQuality) "mp32" else "mp31",
             "imagesize" to "300",
-            "type" to "single albumtrack"
+            "track_type" to "single albumtrack"
         ) + filters
         val body: JSONObject = MusicHttp.get(base, params)
         val headers = body.optJSONObject("headers")
@@ -52,7 +57,9 @@ class JamendoRepository(private val clientId: String, private val highQuality: B
                 durationMs = entry.optLong("duration", 0).coerceAtLeast(0) * 1000L,
                 source = Source.JAMENDO,
                 album = entry.optString("album_name"),
-                artworkUrl = entry.optString("image").takeIf { it.startsWith("https://") }.orEmpty(),
+                artworkUrl = entry.optString("image")
+                    .ifBlank { entry.optString("album_image") }
+                    .takeIf { it.startsWith("https://") }.orEmpty(),
                 artistId = entry.optString("artist_id"),
                 albumId = entry.optString("album_id")
             )
