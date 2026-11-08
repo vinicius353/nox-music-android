@@ -1209,14 +1209,12 @@ class MainActivity : Activity() {
                 val connected = future.get()
                 player = connected
                 connected.addListener(listener)
-                if (connected.mediaItemCount == 0) {
-                    val (saved, index) = libraryDb.restoreQueue()
-                    if (saved.isNotEmpty()) {
-                        activeQueue = saved
-                        connected.setMediaItems(saved.map(Track::mediaItem),index,C.TIME_UNSET)
-                        connected.prepare()
-                        // Never autoplay after reopening the app.
-                    }
+                val (saved, index) = libraryDb.restoreQueue()
+                activeQueue = saved
+                if (connected.mediaItemCount == 0 && saved.isNotEmpty()) {
+                    connected.setMediaItems(saved.map(Track::mediaItem),index,C.TIME_UNSET)
+                    connected.prepare()
+                    // Never autoplay after reopening the app.
                 }
                 syncPlayback()
             } catch (_: Exception) {
