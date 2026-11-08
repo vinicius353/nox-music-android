@@ -14,7 +14,9 @@ class LocalMusicRepository(private val context: Context) {
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
             MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.DURATION
+            MediaStore.Audio.Media.DURATION,
+            MediaStore.Audio.Media.ALBUM,
+            MediaStore.Audio.Media.ALBUM_ID
         )
         context.contentResolver.query(
             collection,
@@ -27,6 +29,8 @@ class LocalMusicRepository(private val context: Context) {
             val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
             val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
             val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+            val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+            val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
                 val title = cursor.getString(titleCol)?.takeIf { it.isNotBlank() } ?: "Sem título"
@@ -38,7 +42,11 @@ class LocalMusicRepository(private val context: Context) {
                     artist = artist,
                     uri = ContentUris.withAppendedId(collection, id).toString(),
                     durationMs = cursor.getLong(durationCol).coerceAtLeast(0L),
-                    source = Source.LOCAL
+                    source = Source.LOCAL,
+                    album = cursor.getString(albumCol).orEmpty(),
+                    albumId = cursor.getLong(albumIdCol).toString(),
+                    artworkUrl = cursor.getLong(albumIdCol).takeIf { it > 0 }
+                        ?.let { "content://media/external/audio/albumart/$it" }.orEmpty()
                 )
             }
         }

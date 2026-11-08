@@ -1,7 +1,7 @@
 name: Android APK
 on:
   push:
-    branches: [main, 'feature/nox-0.2.0']
+    branches: [main, 'feature/nox-0.2.0', 'feature/nox-0.3.0-premium']
   workflow_dispatch:
 
 jobs:
@@ -27,7 +27,7 @@ jobs:
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: NOX-Music-0.2.0-alpha-debug
+          name: NOX-Music-0.3.0-alpha-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30

@@ -1,48 +1,55 @@
 # NOX Music
 
-A lightweight **original native Android music player** written in Kotlin, with a monochrome interface.
+**NOX Music** is an original, lightweight Kotlin music player for Android. No ads, no forced account, no WebView. Designed for small-memory phones.
 
-## 0.2.0 Alpha (On Demand)
+## 0.3.0 Alpha — Premium Refresh
 
-- **Audius**: search, trending tracks and on-demand playback of publicly streamable music, without login.
-- **Jamendo**: optional additional on-demand catalogue using your own free `client_id` (Settings). The demo client ID from Jamendo's docs is intentionally not embedded.
-- **Local library**: play MP3/FLAC/M4A and other Android-supported audio without internet.
-- **Library**: favorites, listening history, named playlists and persistent queue, with a SQLite database stored entirely on device.
-- **Playback**: Media3 ExoPlayer, background playback, Bluetooth and lock-screen controls; queue editing, shuffle, repeat and seeking.
-- **Discovery**: album and artist views when metadata is available, provider labels, artwork and simple genre search.
-- **Radio**: retained as an optional secondary feature using Radio Browser.
-- **Design**: new monochrome adaptive launcher icon, dark typography, subtle motion and bounded list rendering.
-- No ads, account requirement or telemetry.
+### Listen
+- On-demand tracks from public, accessible Audius streams.
+- Optional Jamendo on-demand catalog, **enabled by default** with the owner-supplied public application client ID. Settings can disable Jamendo or override the ID.
+- Offline local library (Android MediaStore), artist/album info, MP3/M4A/FLAC and device-supported formats.
+- Radio Browser remains available as a secondary option.
+- One Media3 session handles the playing queue, background audio, Bluetooth headset buttons and lock-screen controls.
 
-The Spotify or YouTube Music commercial catalogue is **not included**. Third-party providers may be unavailable or may restrict tracks. Public Audius/Jamendo results are not guaranteed to include any particular artist.
+### Experience
+- Native Android SplashScreen with monochrome NOX logo; no artificial loading delays.
+- New home with continue-listening hero, quick navigation, listening history, Jamendo discoveries, Audius trending, local library and saved playlists.
+- Source-aware search, progressive parallel search results and placeholder skeletons.
+- New compact mini-player with a thin progress indicator, improved artwork focus in Now Playing.
+- Favorites, playlists, editable queue, shuffle/repeat, offline library sort.
 
-## Android requirements
-
-Android 8.0 (API 26) or later. Target API 36. Tested by CI compilation, not yet field-tested on every phone.
+### Image fixes and speed
+- Audius parser recognizes `_480x480`, `_150x150` and alternate artwork sizes.
+- Coil 3 image loader, with 8 MiB RAM cache and 80 MiB disk cache, automatic cancellation, downsampling and crossfades.
+- Local album artwork URI lookup (availability varies by Android device and metadata).
+- Cache size display and clearing in Settings.
+- Bounded track lists and search debouncing; no telemetry.
 
 ## Build
 
-JDK 17, Gradle 8.13, Android SDK 36:
+Requires Java 17, Gradle 8.13 and Android SDK 36.
 
-```bash
+```shell
 gradle :app:testDebugUnitTest :app:assembleDebug
 ```
 
-The GitHub Actions workflow produces the **NOX-Music-0.2.0-alpha-debug** build artifact for the `feature/nox-0.2.0` branch. Download the ZIP from Actions → successful run → Artifacts. Debug APKs built on different machines may have different signing keys. If Android rejects an update with a signature error, uninstall the earlier debug build, or configure a persistent signing key for future builds. Back up any personal app data first.
+The GitHub Actions workflow runs unit tests, assembles a signed **debug** APK and uploads it under the corresponding run's **Artifacts** section for `feature/nox-0.3.0-premium`. Release signing is **not** configured. Android debug signatures can differ between builds; a signature mismatch may require uninstalling the old debug APK (which deletes its local app data). Use a persistent private keystore for upgrades in a production release.
 
-## Sources and privacy
+## Privacy & content
 
-- **Audius API**: https://docs.audius.co/api/
-- **Jamendo API**: https://developer.jamendo.com/v3.0/tracks
-- **Radio Browser**: https://www.radio-browser.info/
-- Music lists and favorites are local to the device. No personal data is sent to NOX servers.
-- The app does not scrape Spotify, bypass DRM or use leaked credentials.
+Sources: [Audius](https://docs.audius.co/api/), [Jamendo](https://developer.jamendo.com/v3.0/tracks), and [Radio Browser](https://www.radio-browser.info/). Track availability and licensing depend on the providers. No leaked Spotify credentials, DRM bypass, or commercial catalog scraping is used. A Jamendo client ID is a public identifier, **not a private API secret**.
 
-## Known limitations
+## Notes and limitations
 
-- Audius and Jamendo streaming depends on each API's network availability and rights.
-- Jamendo's developer client ID must be supplied before its provider becomes active.
-- Large lists are loaded in pages, but still use native Android Views (RecyclerView planned).
-- Some artist/album metadata may be missing from third-party providers.
-- Changes to the currently playing queue are saved locally; playback does not automatically resume after an app restart.
-- Commercial licensing conditions still apply if this project is redistributed for other uses.
+- Compilation and unit tests do not guarantee all devices and networks work; test music playback, startup, cover art and performance on a real phone.
+- Jamendo API access with the supplied ID has not been independently verified on-device. In an API failure, Jamendo shows an unavailable state while local playback remains usable.
+- Track/album art may not exist in source metadata; the app uses a neutral placeholder.
+- Lists are paginated native Views; a full RecyclerView architecture can follow after profiling.
+
+## Release history
+
+- 0.1.0 Alpha: local music and radio
+- 0.2.0 Alpha: public on-demand streaming, playlists, history, monochrome theme
+- 0.3.0 Alpha: premium refresh, on-disk artwork caching, Jamendo default, improved home and navigation
+
+Copyright and licenses remain with their respective owners.
