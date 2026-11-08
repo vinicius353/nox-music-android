@@ -133,6 +133,8 @@ class YouTubeMusicPanel(private val activity: Activity) {
             }
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest): Boolean {
+                    // Never externalize YouTube's internal iframe/subframe navigation.
+                    if (!request.isForMainFrame) return false
                     val url = request.url
                     if (isYouTubeMusic(url)) return false
                     // Never pass file://, javascript:, intent: or other unsafe schemes to an external app.
