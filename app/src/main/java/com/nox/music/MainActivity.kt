@@ -1057,70 +1057,113 @@ class MainActivity : Activity() {
     }
 
     private fun settingsPage(column: LinearLayout) {
-        heading(column, "Personalização", "Configurações", "NOX Music • versão 0.2.0 Alpha")
-        val prefs = getSharedPreferences("nox_settings", MODE_PRIVATE)
-        section(column, "Aparência")
-        val motion = LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            background = shape(card, 15)
-            setPadding(dp(17),dp(16),dp(17),dp(16))
+        heading(column,"NOX • Preferências","Configurações","Personalize a experiência e gerencie seus dados.")
+        val prefs=getSharedPreferences("nox_settings",MODE_PRIVATE)
+        section(column,"Visual")
+        val animations=LinearLayout(this).apply {
+            gravity=Gravity.CENTER_VERTICAL
+            setPadding(dp(17),dp(17),dp(17),dp(17))
+            background=shape(card,17)
         }
-        motion.addView(text("Animações de entrada", 14f, light, true), LinearLayout.LayoutParams(0,-2,1f))
-        val state = text(if (prefs.getBoolean("animations", true)) "ATIVAS" else "DESLIGADAS",11f,secondary,true)
-        motion.addView(state)
-        motion.setOnClickListener {
-            val enabled = !prefs.getBoolean("animations",true)
+        animations.addView(text("Transições suaves",14f,light,true),LinearLayout.LayoutParams(0,-2,1f))
+        val state=text(if(prefs.getBoolean("animations",true)) "LIGADO" else "DESLIGADO",11f,secondary,true)
+        animations.addView(state)
+        animations.setOnClickListener {
+            val enabled=!prefs.getBoolean("animations",true)
             prefs.edit().putBoolean("animations",enabled).apply()
-            state.text = if (enabled) "ATIVAS" else "DESLIGADAS"
+            state.text=if(enabled) "LIGADO" else "DESLIGADO"
         }
-        column.addView(motion,lp(-1,-2,0,0,0,19))
-        section(column, "Streaming")
-        val hasJamendo = !prefs.getString("jamendo_id","").isNullOrBlank()
-        infoCard(column, "Jamendo • acesso opcional",
-            if (hasJamendo) "Fonte Jamendo configurada. Músicas completas e oficiais." else "Para ativar, obtenha gratuitamente um client_id no portal Jamendo.",
-            if (hasJamendo) "ALTERAR CLIENT ID" else "CONFIGURAR CLIENT ID") {
-            val field = EditText(this).apply {
+        column.addView(animations,lp(-1,-2,0,0,0,22))
+
+        section(column,"Fontes de streaming")
+        val enabled=prefs.getBoolean("jamendo_enabled",true)
+        val jamendoToggle=LinearLayout(this).apply {
+            gravity=Gravity.CENTER_VERTICAL
+            background=shape(card,17)
+            setPadding(dp(17),dp(17),dp(17),dp(17))
+        }
+        val names=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        names.addView(text("Jamendo",15f,light,true))
+        names.addView(text("Músicas grátis sob demanda",11f,secondary),lp(-1,-2,0,6))
+        jamendoToggle.addView(names,LinearLayout.LayoutParams(0,-2,1f))
+        val switchState=text(if(enabled) "ATIVO" else "INATIVO",12f,if(enabled) light else secondary,true)
+        jamendoToggle.addView(switchState)
+        jamendoToggle.setOnClickListener {
+            prefs.edit().putBoolean("jamendo_enabled",!enabled).apply()
+            if(!enabled) loadJamendoPopular() else {
+                jamendoPopularTracks=emptyList()
+                jamendoLoading=false
+            }
+            renderPage()
+        }
+        column.addView(jamendoToggle,lp(-1,-2,0,0,0,9))
+        val configured=prefs.getString("jamendo_id",JamendoRepository.DEFAULT_ID)
+            .orEmpty().ifBlank { JamendoRepository.DEFAULT_ID }
+        infoCard(column,"Client ID padrão: "+configured,
+            "ID fornecido pelo proprietário. Você pode trocar por outro da sua conta Jamendo.",
+            "ALTERAR CLIENT ID") {
+            val field=EditText(this).apply {
                 setSingleLine(true)
                 setTextColor(light)
                 setHintTextColor(secondary)
-                hint = "client_id do Jamendo"
-                setText(prefs.getString("jamendo_id", ""))
+                hint="Client ID"
+                setText(configured)
                 setPadding(dp(16),dp(12),dp(16),dp(12))
             }
-            AlertDialog.Builder(this)
-                .setTitle("Jamendo client_id")
+            AlertDialog.Builder(this).setTitle("Jamendo • Client ID")
                 .setView(field)
-                .setMessage("Use apenas a credencial gratuita da sua aplicação. Deixe vazio para desativar.")
                 .setNegativeButton("Cancelar",null)
+                .setNeutralButton("Restaurar padrão") { _,_ ->
+                    prefs.edit().putString("jamendo_id",JamendoRepository.DEFAULT_ID).apply()
+                    loadJamendoPopular()
+                    renderPage()
+                }
                 .setPositiveButton("Salvar") { _,_ ->
-                    val id = field.text.toString().trim()
-                    if (id.isEmpty() || id.matches(Regex("[a-zA-Z0-9]{4,64}"))) {
-                        prefs.edit().putString("jamendo_id",id).apply()
-                        if (searchText.isNotEmpty()) performSearch(searchText)
+                    val newId=field.text.toString().trim()
+                    if(newId.matches(Regex("[a-zA-Z0-9]{4,64}"))) {
+                        prefs.edit().putString("jamendo_id",newId).apply()
+                        loadJamendoPopular()
                         renderPage()
-                    } else Toast.makeText(this,"Client ID inválido.",Toast.LENGTH_SHORT).show()
+                    } else Toast.makeText(this,"Use um client ID válido.",Toast.LENGTH_SHORT).show()
                 }.show()
         }
-        column.addView(text("Portal oficial: developer.jamendo.com",11f,secondary),lp(-1,-2,0,5,0,17))
-        val quality = actionLabel(
-            if (prefs.getBoolean("hq_audio",true)) "QUALIDADE JAMENDO: ALTA" else "QUALIDADE JAMENDO: ECONÔMICA"
-        ) {
-            val enabled = !prefs.getBoolean("hq_audio",true)
-            prefs.edit().putBoolean("hq_audio",enabled).apply()
+        val high=prefs.getBoolean("hq_audio",true)
+        column.addView(actionLabel(if(high) "QUALIDADE DO STREAMING: ALTA" else "QUALIDADE DO STREAMING: ECONÔMICA") {
+            prefs.edit().putBoolean("hq_audio",!high).apply()
             renderPage()
-        }
-        column.addView(quality,lp(-1,51,0,0,0,18))
-        section(column, "Biblioteca")
-        column.addView(actionLabel("RECARREGAR ARQUIVOS LOCAIS") {
-            if (hasAudioPermission()) {
-                loadLocal()
-                Toast.makeText(this, "Atualizando biblioteca...", Toast.LENGTH_SHORT).show()
-            } else requestAudioPermission()
         },lp(-1,49,0,0,0,10))
-        column.addView(actionLabel("ABRIR RÁDIO AO VIVO") { openTab(4) },lp(-1,49,0,0,0,19))
-        section(column, "Sobre")
-        column.addView(text("NOX Music • player Android independente. Sem anúncios, sem conta obrigatória e sem coleta de dados.",12f,secondary))
-        column.addView(text("Músicas online são fornecidas por seus respectivos provedores e podem não estar disponíveis em todas as regiões.",11f,secondary),lp(-1,-2,0,11))
+        column.addView(text("O catálogo depende da disponibilidade dos servidores.",11f,secondary),lp(-1,-2,0,5,0,24))
+
+        section(column,"Armazenamento")
+        val usage=text("Calculando cache de capas...",12f,secondary)
+        column.addView(usage,lp(-1,-2,0,0,0,11))
+        io.execute {
+            val bytes=runCatching { covers.diskUsageBytes() }.getOrDefault(0L)
+            runOnUiThread {
+                if(!isFinishing && !isDestroyed && tab==5)
+                    usage.text="Capas armazenadas: "+String.format(java.util.Locale.getDefault(),"%.1f MB",bytes/1048576.0)+" / 80 MB"
+            }
+        }
+        column.addView(actionLabel("LIMPAR CACHE DE CAPAS") {
+            io.execute {
+                val done=runCatching { covers.clear() }
+                runOnUiThread {
+                    if(!isFinishing && !isDestroyed) {
+                        Toast.makeText(this,if(done.isSuccess) "Cache removido." else "Não foi possível limpar o cache.",Toast.LENGTH_SHORT).show()
+                        if(tab==5) renderPage()
+                    }
+                }
+            }
+        },lp(-1,50,0,0,0,11))
+        column.addView(actionLabel("RECARREGAR BIBLIOTECA LOCAL") {
+            if(hasAudioPermission()) loadLocal() else requestAudioPermission()
+        },lp(-1,50,0,0,0,11))
+        column.addView(actionLabel("EXPLORAR RÁDIOS AO VIVO") { openTab(4) },lp(-1,50,0,0,0,21))
+
+        section(column,"Sobre")
+        column.addView(text("NOX MUSIC  0.3.0 ALPHA",12f,light,true))
+        column.addView(text("Android nativo • Audius • Jamendo • arquivos locais",12f,secondary),lp(-1,-2,0,8))
+        column.addView(text("Sem anúncios ou conta obrigatória. Nenhuma faixa comercial protegida é desbloqueada.",11f,secondary),lp(-1,-2,0,8))
     }
 
     private fun infoCard(
@@ -1606,7 +1649,7 @@ class MainActivity : Activity() {
             }
             column.addView(detailBar,lp(-1,42,0,0,0,15))
         }
-        column.addView(text("NOX MUSIC  •  0.2.0 ALPHA", 10f, secondary, true).apply {
+        column.addView(text("NOX MUSIC  •  0.3.0 ALPHA", 10f, secondary, true).apply {
             gravity = Gravity.CENTER
             letterSpacing = 0.08f
         }, lp(-1, -2, 0, 2))
